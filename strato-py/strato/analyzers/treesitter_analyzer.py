@@ -1,5 +1,4 @@
 import os
-import importlib
 import pathlib
 from collections import deque
 from typing import Generator, TypeVar
@@ -50,7 +49,6 @@ def analyze(entrypoint: str):
     tree = parse_file(entry_file_str)
     for node in depth_first_traverse(tree):
         if node.type == "import_from_statement":
-            import_name: str
             print(f"# {node.type}")
             if node.text:
                 print(node.text.decode())
@@ -62,7 +60,6 @@ def analyze(entrypoint: str):
                     for c in child.children:
                         print(c.type, c.text)
         if node.type == "import_statement":
-            import_name: str
             print(f"# {node.type}")
             if node.text:
                 print(node.text.decode())

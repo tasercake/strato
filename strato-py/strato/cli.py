@@ -26,7 +26,7 @@ def main(
     root: str,
     method: Annotated[
         AnalyzerOption, typer.Option(callback=method_callback)
-    ] = AnalyzerOption.treesitter,
+    ] = AnalyzerOption.ast,
 ):
     if method == "ast":
         analyze_ast(root)
