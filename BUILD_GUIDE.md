@@ -12,7 +12,13 @@ Ruff uses a **sophisticated multi-crate architecture** that can be directly leve
 - `ruff_linter`: Rule engine and AST visitor pattern implementation
 - `ruff_python_ast`: Custom AST types with location tracking and semantic metadata
 
-**Multi-file analysis capabilities**: Ruff's **Red Knot type checker integration** uses Salsa-based incremental computation for cross-file semantic analysis. This is essential for detecting asyncio patterns that span multiple modules, such as:
+**Multi-file analysis capabilities**: Ruff's **type checker (ty_* crates)** uses Salsa-based incremental computation for cross-file semantic analysis. The core multi-file analysis crates include:
+- `ty_python_semantic`: Core semantic analysis for Python code with cross-file capabilities
+- `ty_project`: Project-level analysis and database management using Salsa
+- `ty_combine`: Type combining and inference across modules
+- `ruff_db`: Base database layer with Salsa integration for file management
+
+This infrastructure is essential for detecting asyncio patterns that span multiple modules, such as:
 - Import analysis to identify blocking libraries vs async alternatives
 - Cross-module async function call validation  
 - Resource lifecycle tracking across files
@@ -102,13 +108,15 @@ fn analyze_async_function(db: &dyn AnalysisDatabase, func: &FunctionDef) -> Vec<
 ```
 
 ### Layered crate organization  
-Structure the project with clear separation of concerns:
+Structure the project with clear separation of concerns (following ruff's multi-crate architecture):
 
 ```
 asyncio-linter/
 ├── crates/
 │   ├── asyncio-parser/     # Python parsing and AST generation
-│   ├── asyncio-analysis/   # Core semantic analysis and rule engine  
+│   ├── asyncio-db/         # Database layer with Salsa integration (like ruff_db)
+│   ├── asyncio-semantic/   # Semantic analysis for Python code (like ty_python_semantic)
+│   ├── asyncio-project/    # Project-level analysis and management (like ty_project)
 │   ├── asyncio-rules/      # Asyncio-specific lint rule implementations
 │   ├── asyncio-cli/        # Command-line interface
 │   └── asyncio-server/     # Language Server Protocol implementation
@@ -158,9 +166,9 @@ asyncio-linter/
 **Cross-file analysis and sophisticated patterns**:
 
 **Week 1-4**: Multi-file semantic analysis
-- Integrate Salsa for incremental computation
-- Implement import resolution and cross-module analysis
-- Add type-aware rule analysis for complex asyncio patterns
+- Integrate Salsa for incremental computation (following ruff's ty_project pattern)
+- Implement import resolution and cross-module analysis (leveraging ty_python_semantic design)
+- Add type-aware rule analysis for complex asyncio patterns (using ruff_db foundation)
 - Create project-wide resource lifecycle tracking
 
 **Week 5-8**: Extended rule set
