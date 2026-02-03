@@ -142,8 +142,8 @@ fn resolve_import(import_stmt, current_module_path, source_roots):
 
 #### Data Structures
 
-- **`ModuleMap`:** `HashMap<ModulePath, FilePath>` — maps Python module paths (e.g., `foo.bar.baz`) to source files
-- **`SymbolTable`:** `HashMap<QualifiedName, SymbolDef>` — maps fully qualified names (e.g., `foo.bar.MyClass.method`) to definitions
+- **`ModuleMap`:** `HashMap<ModulePath, FilePath>` – maps Python module paths (e.g., `foo.bar.baz`) to source files
+- **`SymbolTable`:** `HashMap<QualifiedName, SymbolDef>` – maps fully qualified names (e.g., `foo.bar.MyClass.method`) to definitions
 - **`ResolvedModule`:** `{ path: PathBuf, kind: ModuleKind }` where `ModuleKind = File | Package | NamespacePackage`
 - **`SymbolDef`:** `enum { Function, Class, Variable, Import }`
 

@@ -1,6 +1,6 @@
 # 11. Supporting Systems
 
-> **Decision recap:** [Decision 3.13](./03-design-decisions.md#313-caching-strategy-and-ty-boundary) — file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Decision 3.11](./03-design-decisions.md#311-distribution-dual-pypi-packages) — dual PyPI packages with zero production footprint.
+> **Decision recap:** [Decision 3.13](./03-design-decisions.md#313-caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Decision 3.11](./03-design-decisions.md#311-distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
 
 [tooling]
 
@@ -67,7 +67,7 @@ OPTIONS:
 | 2 | Configuration error (invalid config, missing source roots) |
 | 3 | All files failed to parse (no analysis possible) |
 
-**Parse error policy**: Individual file parse errors are **non-fatal** — strato emits a warning for each unparseable file and continues on remaining files. Exit code 3 is returned **only** when every file fails to parse. Warnings do NOT affect exit code.
+**Parse error policy**: Individual file parse errors are **non-fatal** – strato emits a warning for each unparseable file and continues on remaining files. Exit code 3 is returned **only** when every file fails to parse. Warnings do NOT affect exit code.
 
 #### Example Usage
 

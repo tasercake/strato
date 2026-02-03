@@ -96,7 +96,7 @@ blocking_modules = [
 
 ### 8.4 Annotations API (@blocking, @non_blocking, @unblocker)
 
-The `strato` Python package provides three decorators for annotating function blocking behavior. The package has zero dependencies and zero runtime impact — decorators are transparent wrappers.
+The `strato` Python package provides three decorators for annotating function blocking behavior. The package has zero dependencies and zero runtime impact – decorators are transparent wrappers.
 
 #### Decorator Definitions
 
@@ -247,7 +247,7 @@ Strato supports `.pyi` stub files for annotating third-party libraries without m
 
 When a function has multiple sources of blocking information:
 
-1. `@non_blocking` annotation (highest — explicit override)
+1. `@non_blocking` annotation (highest – explicit override)
 2. `@blocking` annotation
 3. User configuration (`[tool.strato.blocking]`)
 4. Built-in database entry (lowest)

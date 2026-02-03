@@ -1,7 +1,7 @@
 [book]
-title = "RFC: Strato — Async Blocking Call Detector for Python"
-authors = ["Strato Authors"]
-description = "Technical RFC for Strato, a Rust-based static analysis tool that detects blocking function calls inside Python async contexts."
+title = "Strato"
+authors = ["Krishna Penukonda <krishna@penukonda.me>"]
+description = "A Rust-based static analysis tool that detects blocking function calls inside Python async contexts"
 language = "en"
 src = "src"
 

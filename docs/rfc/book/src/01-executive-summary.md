@@ -1,6 +1,6 @@
 # 1. Executive Summary
 
-**Strato** is a Rust-based static analysis tool that detects blocking function calls inside Python async contexts. Unlike existing linters (flake8-async, ruff ASYNC2XX) which only catch **direct** blocking calls, Strato performs **full transitive call-graph analysis** — tracing through intermediary sync functions to find hidden blocking calls that would stall the event loop.
+**Strato** is a Rust-based static analysis tool that detects blocking function calls inside Python async contexts. Unlike existing linters (flake8-async, ruff ASYNC2XX) which only catch **direct** blocking calls, Strato performs **full transitive call-graph analysis** – tracing through intermediary sync functions to find hidden blocking calls that would stall the event loop.
 
 ### The Novel Contribution
 
@@ -14,22 +14,18 @@ async def handler():
     sync_helper()          # Strato catches this. No other tool does.
 ```
 
-Strato builds a project-wide call graph, propagates "blocking" status through function call chains using SCC-based linear-time analysis, and reports when blocking code is reachable from async contexts — with configurable error reporting that shows diagnostics in the user's own code, not deep in third-party libraries.
+Strato builds a project-wide call graph, propagates "blocking" status through function call chains using SCC-based linear-time analysis, and reports when blocking code is reachable from async contexts – with configurable error reporting that shows diagnostics in the user's own code, not deep in third-party libraries.
 
-### Key Design Choices
+### Design Choices
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Analysis approach | Full transitive call graph | Only way to catch indirect blocking (the core value proposition) |
-| Precision policy | High precision (Unknown = skip) | Zero false positives — users trust every diagnostic |
-| Propagation algorithm | SCC-based (Tarjan's) | O(V+E) linear time, handles cycles elegantly |
-| Type inference | Astral's `ty` crate | Full alias tracking, return types, MRO — critical for method/property resolution |
-| Language | Rust | Performance parity with ruff; access to ruff parser crates |
-| Distribution | Dual PyPI packages | Zero binary footprint in production (`strato` annotations + `strato-cli` binary) |
+| Precision policy | High precision (Unknown = skip) | Zero false positives – users trust every diagnostic |
+| Type inference engine | Astral's `ty` crate | Full alias tracking, return types, MRO – critical for method/property resolution |
 | Error reporting | Configurable intervention point | Default: deepest first-party function (most actionable) |
 | Blocking database | Curated ~80 entries + user-extensible | High signal, low noise; extensible via config and `@blocking` decorator |
 | Executor wrappers | Generalized registry | Built-in + config + `@unblocker` decorator for custom wrappers |
-| v1 scope | asyncio only | Bounded complexity; architecture supports future framework expansion |
 
 ### v1 Scope Boundaries
 

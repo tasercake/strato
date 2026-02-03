@@ -1,6 +1,6 @@
 # 7. Blocking Propagation
 
-> **Decision recap**: [Decision 3.3](./03-design-decisions.md#33-scc-based-propagation-vs-iterative-fixpoint) — Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
+> **Decision recap**: [Decision 3.3](./03-design-decisions.md#33-scc-based-propagation-vs-iterative-fixpoint) – Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
 
 ### 7.1 The Fixpoint Problem
 
@@ -54,7 +54,7 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
 
     IF scc_has_non_blocking:
       scc_node.is_blocking = false
-      CONTINUE  // Skip to next SCC — do not propagate blocking through this SCC
+      CONTINUE  // Skip to next SCC – do not propagate blocking through this SCC
 
     // Step 4b: Check if any function in this SCC is directly blocking
     scc_is_blocking = false
@@ -116,7 +116,7 @@ The condensed edge from SCC_A to SCC_B has `all_calls_in_executor = false` becau
 
 ### 7.4 Blocking Path Tracing
 
-For error reporting, we need to know *how* a function became blocking — the chain from the async context to the ultimate blocking call. This is stored during propagation:
+For error reporting, we need to know *how* a function became blocking – the chain from the async context to the ultimate blocking call. This is stored during propagation:
 
 ```rust
 struct BlockingReason {
@@ -144,7 +144,7 @@ struct ChainLink {
     /// The calling function's DEFINITION location (where `def function_name` appears).
     /// Used for chain display (function reference). None for phantom (external) nodes.
     function_location: Option<Location>,
-    /// The CALL SITE location within the calling function's body — the exact
+    /// The CALL SITE location within the calling function's body – the exact
     /// expression where the next function in the chain is invoked.
     /// This is the span that gets underlined in text output.
     /// None for phantom nodes (they have no source to point to).
@@ -205,4 +205,4 @@ FUNCTION select_blocking_reason(func, graph) -> BlockingReason:
 
 Where V = number of functions, E = number of call edges.
 
-**This is linear time.** There is no iterative fixpoint — the SCC decomposition eliminates cycles, and the topological ordering ensures each node is processed exactly once. This is critical for performance on large codebases.
+**This is linear time.** There is no iterative fixpoint – the SCC decomposition eliminates cycles, and the topological ordering ensures each node is processed exactly once. This is critical for performance on large codebases.

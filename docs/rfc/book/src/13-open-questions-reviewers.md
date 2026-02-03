@@ -3,7 +3,7 @@
 ### For Python Async Experts
 
 *Tags: async*
-**Asyncio scope limitation ([Decision 3.16](./03-design-decisions.md#316-async-scope-boundary-asyncio-only)):** We chose to support asyncio only in v1, excluding trio, curio, and anyio. The rationale is that asyncio is the stdlib framework and most widely used, and supporting multiple frameworks would require tracking each framework's distinct APIs for escape hatches. The architecture is designed for future expansion — the executor wrapper registry ([Decision 3.6](./03-design-decisions.md#36-generalized-executor-wrapper-system)) is already generalized, and adding trio/anyio patterns is straightforward.
+**Asyncio scope limitation ([Decision 3.16](./03-design-decisions.md#316-async-scope-boundary-asyncio-only)):** We chose to support asyncio only in v1, excluding trio, curio, and anyio. The rationale is that asyncio is the stdlib framework and most widely used, and supporting multiple frameworks would require tracking each framework's distinct APIs for escape hatches. The architecture is designed for future expansion – the executor wrapper registry ([Decision 3.6](./03-design-decisions.md#36-generalized-executor-wrapper-system)) is already generalized, and adding trio/anyio patterns is straightforward.
 
 **Question:** Is the asyncio-only scope the right call for v1? Should we attempt trio support from the start, or is the incremental approach (asyncio first, trio in v2) more pragmatic? What are the adoption barriers for teams using trio or anyio if Strato doesn't support their framework?
 
@@ -15,9 +15,9 @@
 
 **Question:** What common executor wrapper patterns are we missing? Are there third-party libraries (e.g., `asgiref.sync.sync_to_async`, `anyio.to_thread.run_sync`) that should be in the built-in registry? Does the parameter-based model (specify which argument is the callable) cover all real-world wrapper patterns, or are there wrappers that don't fit this model?
 
-**False negative tolerance ([Decision 3.2](./03-design-decisions.md#32-precision-policy-unknown--not-blocking)):** We chose "Unknown = Unknown" (high precision) — unresolvable calls are skipped silently. Only emit diagnostics when blocking status is definitively proven. The rationale is that false positives (flagging safe code) are more damaging than false negatives (missing real bugs) in CI and expert review contexts.
+**False negative tolerance ([Decision 3.2](./03-design-decisions.md#32-precision-policy-unknown--not-blocking)):** We chose "Unknown = Unknown" (high precision) – unresolvable calls are skipped silently. Only emit diagnostics when blocking status is definitively proven. The rationale is that false positives (flagging safe code) are more damaging than false negatives (missing real bugs) in CI and expert review contexts.
 
-**Question:** Is this precision-over-recall policy correct for async bugs? Async bugs can be subtle and hard to debug — should we be more aggressive about flagging uncertain cases, even at the cost of false positives? Would a configurable policy (strict mode vs. permissive mode) be more useful?
+**Question:** Is this precision-over-recall policy correct for async bugs? Async bugs can be subtle and hard to debug – should we be more aggressive about flagging uncertain cases, even at the cost of false positives? Would a configurable policy (strict mode vs. permissive mode) be more useful?
 
 ---
 
@@ -26,11 +26,11 @@
 *Tags: analysis*
 **SCC-based propagation correctness ([Decision 3.3](./03-design-decisions.md#33-scc-based-propagation-vs-iterative-fixpoint), [Section 7](./07-blocking-propagation.md#7-blocking-propagation)):** We use Tarjan's algorithm to decompose the call graph into Strongly Connected Components (SCCs), build a condensation graph (DAG of SCCs), topologically sort, and propagate in topological order (leaves first). This guarantees O(V+E) single-pass propagation.
 
-**Question:** Are there edge cases in cycle handling that this approach misses? For example, if an SCC contains both blocking and non-blocking nodes, we mark the entire SCC as blocking — is this sound? What about self-loops (a function calling itself) — are they handled correctly by Tarjan's algorithm as implemented?
+**Question:** Are there edge cases in cycle handling that this approach misses? For example, if an SCC contains both blocking and non-blocking nodes, we mark the entire SCC as blocking – is this sound? What about self-loops (a function calling itself) – are they handled correctly by Tarjan's algorithm as implemented?
 
-**Precision policy ([Decision 3.2](./03-design-decisions.md#32-precision-policy-unknown--not-blocking)):** We chose "Unknown = Unknown" — any unresolvable call is neither blocking nor non-blocking, it's skipped. The propagation algorithm explicitly skips `Unknown` nodes — they do not participate in blocking propagation. This is a permanent terminal state, never reclassified.
+**Precision policy ([Decision 3.2](./03-design-decisions.md#32-precision-policy-unknown--not-blocking)):** We chose "Unknown = Unknown" – any unresolvable call is neither blocking nor non-blocking, it's skipped. The propagation algorithm explicitly skips `Unknown` nodes – they do not participate in blocking propagation. This is a permanent terminal state, never reclassified.
 
-**Question:** Is the "Unknown = Unknown" policy too aggressive? In practice, does this lead to an unacceptably high false negative rate in codebases with heavy dynamic typing or metaprogramming? Should we have a middle ground (e.g., "Unknown = Warning" — flag uncertain cases with a lower severity)?
+**Question:** Is the "Unknown = Unknown" policy too aggressive? In practice, does this lead to an unacceptably high false negative rate in codebases with heavy dynamic typing or metaprogramming? Should we have a middle ground (e.g., "Unknown = Warning" – flag uncertain cases with a lower severity)?
 
 **Type inference gaps ([Decision 3.4](./03-design-decisions.md#34-type-inference-strategy-ty-integration-vs-hand-rolled)):** We integrated Astral's `ty` crate for type inference, which provides alias tracking, return type inference, MRO, and attribute resolution. We rely on ty to resolve method calls (`obj.method()`), property accesses (`obj.prop`), and dunder invocations (`str(obj)`).
 
@@ -51,11 +51,11 @@
 *Tags: tooling*
 **ty integration risk ([Decision 3.4](./03-design-decisions.md#34-type-inference-strategy-ty-integration-vs-hand-rolled)):** We depend on Astral's `ty_python_semantic` crate (pre-1.0) for type inference. This introduces Salsa (a query-based incremental computation framework) and requires pinning to a specific ruff rev. We mitigate API instability by: (1) pinning to a specific rev, (2) panic isolation (catch panics, downgrade to `NullTypeResolver` per-file), (3) accepting the double parse cost (ruff AST for Strato + ty's internal parse).
 
-**Question:** Is the ty integration risk acceptable for a v1 release? Should we wait for ty to reach 1.0, or is the pinned-rev strategy sufficient? What is the maintenance burden of upgrading to new ruff revs — is this a one-time spike or an ongoing tax? Are there alternative type inference libraries (e.g., pyright's type checker, mypy's internals) that would be more stable?
+**Question:** Is the ty integration risk acceptable for a v1 release? Should we wait for ty to reach 1.0, or is the pinned-rev strategy sufficient? What is the maintenance burden of upgrading to new ruff revs – is this a one-time spike or an ongoing tax? Are there alternative type inference libraries (e.g., pyright's type checker, mypy's internals) that would be more stable?
 
 **Performance targets ([Section 11.4](./11-supporting-systems.md#114-performance-targets)):** We target <5s fresh analysis and <500ms cached on 500 files. The measurement protocol uses `hyperfine` with 3 warmup runs and 5 timed runs (report median). CI tests use a +/-30% tolerance band.
 
-**Question:** Are these targets achievable given the architecture (ruff parsing + ty type inference + SCC propagation)? What are the likely bottlenecks — parsing, type inference, graph construction, or propagation? Should we have separate targets for different project sizes (e.g., <1s for 100 files, <10s for 1000 files)? Is the +/-30% CI tolerance too loose?
+**Question:** Are these targets achievable given the architecture (ruff parsing + ty type inference + SCC propagation)? What are the likely bottlenecks – parsing, type inference, graph construction, or propagation? Should we have separate targets for different project sizes (e.g., <1s for 100 files, <10s for 1000 files)? Is the +/-30% CI tolerance too loose?
 
 **Caching strategy ([Decision 3.13](./03-design-decisions.md#313-caching-strategy-and-ty-boundary)):** We cache per-file parse results and imports (Phases 1-3) keyed by file content hash. Call graph construction and propagation (Phases 4-7) re-run every time. ty's Salsa database is in-memory only, not serializable, so ty results are not cached cross-run.
 
@@ -67,7 +67,7 @@
 
 **Determinism contract ([Decision 3.14](./03-design-decisions.md#314-determinism-contract)):** We enforce determinism at multiple levels: (1) `BTreeMap` for output-affecting collections, (2) diagnostics sorted by file path -> line -> column -> error code, (3) blocking path selection uses shortest-path with lexicographic tie-breaking, (4) cache keys use SHA-256 content hashes.
 
-**Question:** Is `BTreeMap` sufficient to guarantee determinism, or are there other sources of non-determinism (e.g., rayon's parallel iteration order, filesystem traversal order, ty's internal query order)? Should we have a determinism regression test that runs the same fixture multiple times and asserts identical output? What is the performance cost of determinism — is the O(log n) overhead of `BTreeMap` negligible, or does it add up at scale?
+**Question:** Is `BTreeMap` sufficient to guarantee determinism, or are there other sources of non-determinism (e.g., rayon's parallel iteration order, filesystem traversal order, ty's internal query order)? Should we have a determinism regression test that runs the same fixture multiple times and asserts identical output? What is the performance cost of determinism – is the O(log n) overhead of `BTreeMap` negligible, or does it add up at scale?
 
 ---
 
@@ -77,9 +77,9 @@
 
 **Question:** Is the v1 scope too ambitious, or not ambitious enough? Should we cut features to ship faster (e.g., drop ty integration, drop executor wrapper detection), or should we expand scope (e.g., add trio support, add autofix suggestions)? What is the minimum viable feature set that would make Strato useful in production?
 
-**Error reporting UX ([Decision 3.7](./03-design-decisions.md#37-intervention-strategy-for-error-reporting)):** We default to `first-party-deepest` intervention strategy — point the diagnostic to the deepest first-party function in the blocking call chain. The rationale is that this is the most actionable location (user can fix this function). The full chain is always included in diagnostics for context.
+**Error reporting UX ([Decision 3.7](./03-design-decisions.md#37-intervention-strategy-for-error-reporting)):** We default to `first-party-deepest` intervention strategy – point the diagnostic to the deepest first-party function in the blocking call chain. The rationale is that this is the most actionable location (user can fix this function). The full chain is always included in diagnostics for context.
 
-**Question:** Is `first-party-deepest` the right default? Would `async-boundary` (always point to the async function) be more intuitive for users? Should we provide both locations (primary + secondary) in the diagnostic? How do we handle cases where the entire chain is third-party code (e.g., `async def handler(): requests.get(...)`) — should we fall back to the async boundary?
+**Question:** Is `first-party-deepest` the right default? Would `async-boundary` (always point to the async function) be more intuitive for users? Should we provide both locations (primary + secondary) in the diagnostic? How do we handle cases where the entire chain is third-party code (e.g., `async def handler(): requests.get(...)`) – should we fall back to the async boundary?
 
 **Adoption barriers:** Strato requires: (1) installing `strato-cli` (Rust binary via PyPI), (2) optionally installing `strato` (Python annotations package), (3) running `strato check src/` in CI, (4) configuring `pyproject.toml` for custom blocking functions or executor wrappers.
 

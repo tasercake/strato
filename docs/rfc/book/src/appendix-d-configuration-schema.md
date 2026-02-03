@@ -1,8 +1,8 @@
 # Appendix D: Configuration Schema
 
-Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. All configuration is optional — Strato provides sensible defaults for zero-config operation.
+Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. All configuration is optional – Strato provides sensible defaults for zero-config operation.
 
-### `[tool.strato]` — Core Configuration
+### `[tool.strato]` – Core Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -16,7 +16,7 @@ Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. A
 | `stub_paths` | `list[str]` | `[]` | Additional directories to search for `.pyi` stubs with `@blocking` annotations. |
 | `output_format` | `str` | `"text"` | Output format. Options: `"text"`, `"json"`, `"sarif"`. |
 
-### `[tool.strato.blocking]` — Blocking Function Database
+### `[tool.strato.blocking]` – Blocking Function Database
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -29,7 +29,7 @@ Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. A
 - `help` (required): Human-readable fix suggestion
 - `category` (required): One of: `"sleep"`, `"network-io"`, `"file-io"`, `"subprocess"`, `"database-io"`, `"user-input"`, `"other"`
 
-### `[tool.strato.executor-wrappers]` — Custom Escape Hatches
+### `[tool.strato.executor-wrappers]` – Custom Escape Hatches
 
 Key-value pairs where the key is the qualified wrapper name and the value specifies which parameter receives the callable:
 

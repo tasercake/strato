@@ -1,6 +1,6 @@
 # 6. Call Graph & Type Resolution
 
-> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Type resolution was initially hand-rolled (`ScopeBindings`) but replaced with Astral's `ty` crate in v1.1 for improved accuracy. See [Decision 3.4](./03-design-decisions.md#34-type-inference-strategy-ty-integration-vs-hand-rolled) for the full tradeoff analysis.
+> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Type resolution uses Astral's `ty` crate for full inference; an earlier hand-rolled `ScopeBindings` approach was dropped because it failed on aliased imports, return-type inference, and attribute resolution. See [Decision 3.4](./03-design-decisions.md#34-type-inference-strategy-ty-integration-vs-hand-rolled) for the full tradeoff analysis.
 
 ### 6.1 Graph Data Model
 
@@ -174,23 +174,9 @@ Determining the target of a call requires resolving the callee expression:
 
 ### 6.3 Type Resolution via `ty`
 
-#### Evolution: `ScopeBindings` → `ty`
+#### Type resolution: `ty` (not hand-rolled `ScopeBindings`)
 
-**v1.0 approach:** Hand-rolled `ScopeBindings` struct tracked variable bindings in each scope:
-
-```rust
-struct ScopeBindings {
-    bindings: HashMap<String, SymbolDef>,
-    parent: Option<Box<ScopeBindings>>,
-}
-```
-
-This worked for simple cases but failed on:
-- Aliased imports: `x = requests.get; x()` (lost track of `requests.get`)
-- Return type inference: `def factory() -> Foo: ...; factory().method()`
-- Attribute resolution: `obj.attr.method()` (no type information for `obj`)
-
-**v1.1 approach:** Replaced with Astral's `ty` crate, which provides full type inference for Python.
+Strato uses Astral's `ty` crate for type inference. A hand-rolled `ScopeBindings`-style approach (scope chain of variable bindings) was considered but is insufficient: it fails on aliased imports (`x = requests.get; x()`), return type inference (`factory().method()`), and attribute resolution (`obj.attr.method()`). The current design relies on `ty` for full inference.
 
 #### `TypeResolver` Trait
 
@@ -252,7 +238,7 @@ def foo(x):  # x has no type annotation
     x.method()  # ty cannot infer type of x
 ```
 
-Result: No edge created for `x.method()` call. This is **by design** — we prefer false negatives over false positives.
+Result: No edge created for `x.method()` call. This is **by design** – we prefer false negatives over false positives.
 
 #### Fallback: `NullTypeResolver`
 

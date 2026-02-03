@@ -4,8 +4,6 @@
 
 ---
 
-# Main Sections
-
 - [Executive Summary](01-executive-summary.md)
 - [Problem Statement & Motivation](02-problem-statement-motivation.md)
 - [Design Decisions](03-design-decisions.md)
@@ -29,3 +27,4 @@
 - [C: Output Format Specifications](appendix-c-output-format-specifications.md)
 - [D: Configuration Schema](appendix-d-configuration-schema.md)
 - [E: Repository Structure & Implementation Plan](appendix-e-repository-structure-implementation-plan.md)
+- [Glossary](glossary.md)

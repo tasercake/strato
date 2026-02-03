@@ -140,7 +140,7 @@ fn classify_error_code(chain: &BlockingReason, graph: &CallGraph) -> ErrorCode {
 
 ### 10.3 Intervention Point Strategy
 
-The "intervention point" is the primary location shown in the diagnostic — the place in the user's code where they should make a change. Strato supports two strategies for selecting this location:
+The "intervention point" is the primary location shown in the diagnostic – the place in the user's code where they should make a change. Strato supports two strategies for selecting this location:
 
 #### Strategy: `first-party-deepest` (Default)
 
@@ -183,7 +183,7 @@ fn select_async_boundary(chain: &[ChainLink]) -> &ChainLink {
 
 #### Strategy: `async-boundary`
 
-Select the **async-to-sync transition point** — the last async function before the sync call chain that leads to blocking. This points users to the boundary where they should consider offloading the sync work.
+Select the **async-to-sync transition point** – the last async function before the sync call chain that leads to blocking. This points users to the boundary where they should consider offloading the sync work.
 
 #### Example Comparison
 
@@ -248,7 +248,7 @@ struct Diagnostic {
     /// Severity level
     severity: Severity,  // Error, Warning
 
-    /// The "intervention point" — where the user should look
+    /// The "intervention point" – where the user should look
     primary_location: Location,
 
     /// Human-readable message

@@ -43,7 +43,7 @@ FUNCTION is_executor_call(call: &ExprCall) -> bool:
     _:
       RETURN false
 
-// Syntactic heuristic — no type inference required.
+// Syntactic heuristic – no type inference required.
 FUNCTION is_likely_event_loop(value: &Expr) -> bool:
 
   MATCH value:
@@ -62,14 +62,14 @@ FUNCTION is_likely_event_loop(value: &Expr) -> bool:
         _:
           RETURN false
 
-    // Case 3: Anything else — not provably an event loop
+    // Case 3: Anything else – not provably an event loop
     _:
       RETURN false
 ```
 
 #### Synthetic Edge Rule
 
-When an escape hatch is detected, the **callable argument** is protected. However, passing a callable as an argument (e.g., `run_in_executor(None, time.sleep, 1)`) is NOT a call expression in the AST — it's a `Name` reference. Strato creates a **synthetic call edge** to model the offloading:
+When an escape hatch is detected, the **callable argument** is protected. However, passing a callable as an argument (e.g., `run_in_executor(None, time.sleep, 1)`) is NOT a call expression in the AST – it's a `Name` reference. Strato creates a **synthetic call edge** to model the offloading:
 
 ```
 WHEN is_executor_call(call) is true:
@@ -77,27 +77,27 @@ WHEN is_executor_call(call) is true:
   callable_arg = call.args[get_executor_callable_arg_position(call)]
 
   MATCH callable_arg:
-    // Case 1: Direct name reference — time.sleep, my_func
+    // Case 1: Direct name reference – time.sleep, my_func
     Name(name) | Attribute(value, attr):
       callee = resolve_callee(callable_arg)
       IF callee is Some:
         // Create SYNTHETIC edge with in_executor=true
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
 
-    // Case 2: functools.partial(func, arg1, ...) — unwrap to the underlying callable
+    // Case 2: functools.partial(func, arg1, ...) – unwrap to the underlying callable
     Call(func=Attribute(value=Name("partial"|"functools"), attr="partial"),
          args=[real_func, ...]):
       callee = resolve_callee(real_func)
       IF callee is Some:
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
 
-    // Case 3: lambda: func(arg1) — walk the lambda body with in_executor_context=true
+    // Case 3: lambda: func(arg1) – walk the lambda body with in_executor_context=true
     Lambda(body):
       in_executor_context = true
       visit(body)  // Any edges found inside are marked in_executor=true
       in_executor_context = false
 
-    // Case 4: Anything else — unresolvable, skip
+    // Case 4: Anything else – unresolvable, skip
     _:
       PASS
 ```
@@ -152,7 +152,7 @@ Users can add custom escape hatches in `pyproject.toml`:
 **Configuration semantics**:
 
 - **Key**: Qualified name of the wrapper function
-- **Value**: Object with `callable_param` field — integer (positional index, 0-based) or string (keyword argument name)
+- **Value**: Object with `callable_param` field – integer (positional index, 0-based) or string (keyword argument name)
 - Duplicate keys are rejected (last one wins, with a warning)
 
 **The `@unblocker` decorator** provides an alternative to configuration for first-party wrappers (see [Section 8.4](./08-blocking-function-database-annotations.md#84-annotations-api-blocking-non_blocking-unblocker)).
