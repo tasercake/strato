@@ -110,7 +110,7 @@ strato (Python package)
 ### Public API Contract (`strato_core`)
 
 ```rust
-/// Top-level entry point: run the full analysis pipeline (Phases 1–7).
+/// Top-level entry point: run the full analysis pipeline (Phases 1 – 7).
 pub fn analyze(project_path: &Path, config: &Config) -> Result<AnalysisResult, AnalysisError>;
 
 /// Configuration loaded from pyproject.toml [tool.strato] or defaults.

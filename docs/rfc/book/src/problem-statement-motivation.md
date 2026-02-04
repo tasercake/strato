@@ -2,7 +2,7 @@
 
 ### 2.1 The Core Problem
 
-Blocking function calls inside Python async contexts silently destroy concurrency. When an `async def` function calls a blocking operation–such as `time.sleep()`, `requests.get()`, or any synchronous I/O–the entire event loop freezes. No other coroutines can execute until the blocking call completes. The application appears to work correctly in isolation but fails catastrophically under load.
+Blocking function calls inside Python async contexts silently destroy concurrency. When an `async def` function calls a blocking operation – such as `time.sleep()`, `requests.get()`, or any synchronous I/O – the entire event loop freezes. No other coroutines can execute until the blocking call completes. The application appears to work correctly in isolation but fails catastrophically under load.
 
 This is an insidious class of bug because:
 
@@ -21,7 +21,7 @@ Current linters detect only **direct** blocking calls. They cannot trace blockin
 import time
 
 async def handler():
-    baz()  # Looks innocent–no linter flags this
+    baz()  # Looks innocent – no linter flags this
 
 def baz():
     time.sleep(1)  # The actual blocking call

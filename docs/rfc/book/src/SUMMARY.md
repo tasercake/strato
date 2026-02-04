@@ -4,19 +4,18 @@
 
 ---
 
-- [Executive Summary](01-executive-summary.md)
-- [Problem Statement & Motivation](02-problem-statement-motivation.md)
-- [Design Decisions](03-design-decisions.md)
-- [Architecture Overview](04-architecture-overview.md)
-- [Analysis Pipeline](05-analysis-pipeline.md)
-- [Call Graph & Type Resolution](06-call-graph-type-resolution.md)
-- [Blocking Propagation](07-blocking-propagation.md)
-- [Blocking Function Database & Annotations](08-blocking-function-database-annotations.md)
-- [Escape Hatches & Executor Wrappers](09-escape-hatches-executor-wrappers.md)
-- [Error Reporting & Diagnostics](10-error-reporting-diagnostics.md)
-- [Supporting Systems](11-supporting-systems.md)
-- [Known Limitations & Scope Boundaries](12-known-limitations-scope-boundaries.md)
-- [Open Questions for Reviewers](13-open-questions-reviewers.md)
+- [Problem Statement & Motivation](problem-statement-motivation.md)
+- [Design Decisions](design-decisions.md)
+- [Architecture Overview](architecture-overview.md)
+- [Analysis Pipeline](analysis-pipeline.md)
+- [Call Graph & Type Resolution](call-graph-type-resolution.md)
+- [Blocking Propagation](blocking-propagation.md)
+- [Blocking Function Database & Annotations](blocking-function-database-annotations.md)
+- [Escape Hatches & Executor Wrappers](escape-hatches-executor-wrappers.md)
+- [Error Reporting & Diagnostics](error-reporting-diagnostics.md)
+- [Supporting Systems](supporting-systems.md)
+- [Known Limitations & Scope Boundaries](known-limitations-scope-boundaries.md)
+- [Open Questions for Reviewers](open-questions-reviewers.md)
 
 ---
 

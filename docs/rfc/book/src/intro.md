@@ -2,31 +2,51 @@
 
 > **Status**: Draft – Seeking feedback & expert review
 
-> **How to review this document**: This book is structured in layers. Sections 1-2 give you enough context to understand the problem and our approach. Sections 3-11 are the detailed design. Section 12 documents known limitations. Section 13 collects open questions. Each section is tagged with the expertise most relevant to it: **[async]** for Python async experts, **[analysis]** for static analysis / PL experts, **[tooling]** for Rust/tooling experts.
->
-> You don't need to read everything – focus on the sections tagged with your expertise, and especially **Section 13 (Open Questions)** where we most need your input.
+**Strato** is a static analysis tool that detects blocking function calls inside Python async contexts. Unlike existing linters (flake8-async, ruff ASYNC2XX) which only catch **direct** blocking calls, Strato performs **full transitive call-graph analysis** – tracing through intermediary sync functions to find hidden blocking calls that would stall the event loop.
 
----
+### What's Different
 
-## Table of Contents
+Existing tools don't catch this:
 
-1. [Executive Summary](./01-executive-summary.md#1-executive-summary)
-2. [Problem Statement & Motivation](./02-problem-statement-motivation.md#2-problem-statement--motivation)
-3. [Design Decisions](./03-design-decisions.md#3-design-decisions)
-4. [Architecture Overview](./04-architecture-overview.md#4-architecture-overview)
-5. [Analysis Pipeline](./05-analysis-pipeline.md#5-analysis-pipeline)
-6. [Call Graph & Type Resolution](./06-call-graph-type-resolution.md#6-call-graph--type-resolution)
-7. [Blocking Propagation](./07-blocking-propagation.md#7-blocking-propagation)
-8. [Blocking Function Database & Annotations](./08-blocking-function-database-annotations.md#8-blocking-function-database--annotations)
-9. [Escape Hatches & Executor Wrappers](./09-escape-hatches-executor-wrappers.md#9-escape-hatches--executor-wrappers)
-10. [Error Reporting & Diagnostics](./10-error-reporting-diagnostics.md#10-error-reporting--diagnostics)
-11. [Supporting Systems](./11-supporting-systems.md#11-supporting-systems)
-12. [Known Limitations & Scope Boundaries](./12-known-limitations-scope-boundaries.md#12-known-limitations--scope-boundaries)
-13. [Open Questions for Reviewers](./13-open-questions-reviewers.md#13-open-questions-for-reviewers)
+```python
+def sync_helper():
+    time.sleep(1)          # Blocking call hidden here
 
-**Appendices**
-- [A: Blocking Function Database (Complete)](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete)
-- [B: Acceptance Test Cases](./appendix-b-acceptance-test-cases.md#appendix-b-acceptance-test-cases)
-- [C: Output Format Specifications](./appendix-c-output-format-specifications.md#appendix-c-output-format-specifications)
-- [D: Configuration Schema](./appendix-d-configuration-schema.md#appendix-d-configuration-schema)
-- [E: Repository Structure & Implementation Plan](./appendix-e-repository-structure-implementation-plan.md#appendix-e-repository-structure--implementation-plan)
+async def handler():
+    sync_helper()          # Strato catches this via call-graph analysis
+```
+
+Strato builds a project-wide call graph, propagates "blocking" status through function call chains using SCC-based linear-time analysis, and reports when blocking code is reachable from async contexts – with configurable error reporting that shows diagnostics in the user's own code, not deep in third-party libraries.
+
+### Design Choices
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Analysis approach | Full transitive call graph | Required to catch indirect blocking |
+| Precision policy | High precision (Unknown = skip) | Zero false positives – users trust every diagnostic |
+| Type inference engine | Astral's `ty` crate | Full alias tracking, return types, MRO – critical for method/property resolution |
+| Error reporting | Configurable intervention point | Default: deepest first-party function (most actionable) |
+| Blocking database | Curated ~80 entries + user-extensible | High signal, low noise; extensible via config and `@blocking` decorator |
+| Executor wrappers | Generalized registry | Built-in + config + `@unblocker` decorator for custom wrappers |
+
+### v1 Scope Boundaries
+
+**In scope:** asyncio blocking detection, transitive call graph, SCC propagation, property/dunder detection, executor wrapper recognition, 80+ built-in blocking functions, text/JSON/SARIF output, incremental caching.
+
+**Out of scope:** trio/curio/anyio, dynamic imports, runtime analysis, cross-package analysis, auto-fix, IDE integration. See [Section 12](./12-known-limitations-scope-boundaries.md#12-known-limitations--scope-boundaries) for the full limitations matrix.
+
+### Error Codes
+
+| Code | What it catches |
+|------|----------------|
+| STRATO001 | Direct blocking call in async function |
+| STRATO002 | Indirect blocking via sync intermediary |
+| STRATO003 | Blocking `@property` accessed in async context |
+| STRATO004 | Blocking dunder method invoked in async context |
+
+### Performance Targets
+
+| Scenario | Target |
+|----------|--------|
+| Fresh analysis (500 files) | < 5 seconds |
+| Cached analysis (no changes) | < 500 milliseconds |
