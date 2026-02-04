@@ -11,10 +11,12 @@ create-missing = false
 
 [output.html]
 default-theme = "light"
-preferred-dark-theme = "navy"
+preferred-dark-theme = "dark"
 smart-punctuation = true
 git-repository-url = "https://github.com/tasercake/strato"
-no-section-label = false
+no-section-label = true
+additional-css = ["theme/page-toc.css", "theme/highlight.css"]
+additional-js = ["theme/page-toc.js"]
 
 [output.html.search]
 enable = true
