@@ -1,4 +1,4 @@
-# 5. Analysis Pipeline
+# 4. Analysis Pipeline
 
 Strato's analysis runs as a seven-phase pipeline, each phase consuming the outputs of the previous:
 
@@ -8,7 +8,7 @@ Discovery → Parse → Resolve → Build → Annotate → Propagate → Report
 
 Each phase is designed for isolation, testability, and graceful degradation. Failures in early phases (parse errors, resolution failures) are collected as warnings but do not halt analysis.
 
-### 5.1 Phase 1: Discovery
+### 4.1 Phase 1: Discovery
 
 **Objective:** Enumerate all Python files in the project and classify them as first-party or third-party.
 
@@ -35,7 +35,7 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
 - `files: Vec<FileEntry>` where `FileEntry = { path, content_hash, is_first_party }`
 - `source_roots: Vec<PathBuf>`
 
-### 5.2 Phase 2: Parse
+### 4.2 Phase 2: Parse
 
 **Objective:** Parse all Python files into ASTs and extract symbol definitions.
 
@@ -64,7 +64,7 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
 
 **Output:** `ParsedFiles = HashMap<PathBuf, ParsedModule>` where `ParsedModule = { ast, symbols }`
 
-### 5.3 Phase 3: Resolve (Module Resolution)
+### 4.3 Phase 3: Resolve (Module Resolution)
 
 **Objective:** Map Python import statements to source files and build a global symbol table.
 
@@ -149,17 +149,17 @@ fn resolve_import(import_stmt, current_module_path, source_roots):
 
 **Output:** `ModuleMap` and `SymbolTable`
 
-### 5.4 Phase 4: Build (Call Graph Construction)
+### 4.4 Phase 4: Build (Call Graph Construction)
 
 **Objective:** Construct a directed graph of all function calls in the codebase.
 
 This phase walks the AST of every function body and records call edges. Callee resolution uses the symbol table (Phase 3) and type inference (via `ty` crate).
 
-**Detailed algorithm in [Section 6](./06-call-graph-type-resolution.md#6-call-graph--type-resolution).**
+**Detailed algorithm in [Section 5](./05-call-graph-type-resolution.md#5-call-graph--type-resolution).**
 
 **Output:** `CallGraph = { nodes: Vec<CallGraphNode>, edges: Vec<CallEdge> }`
 
-### 5.5 Phase 5: Annotate
+### 4.5 Phase 5: Annotate
 
 **Objective:** Mark known blocking functions using the blocking database and decorator annotations.
 
@@ -189,17 +189,17 @@ This phase walks the AST of every function body and records call edges. Callee r
 
 **Output:** Updated `CallGraph` with annotated nodes
 
-### 5.6 Phase 6: Propagate
+### 4.6 Phase 6: Propagate
 
 **Objective:** Propagate blocking status through the call graph to infer blocking behavior of unannotated functions.
 
 If function `f` calls blocking function `g`, then `f` is also blocking (unless the call is wrapped in `asyncio.to_thread` or similar executor).
 
-**Detailed algorithm in [Section 7](./07-blocking-propagation.md#7-blocking-propagation).**
+**Detailed algorithm in [Section 6](./06-blocking-propagation.md#6-blocking-propagation).**
 
 **Output:** Fully annotated `CallGraph` with `PropagatedBlocking` status
 
-### 5.7 Phase 7: Report
+### 4.7 Phase 7: Report
 
 **Objective:** Generate violation reports for blocking calls in async contexts.
 
@@ -212,6 +212,6 @@ If function `f` calls blocking function `g`, then `f` is also blocking (unless t
    - Edge does **not** have `in_executor = true`
 4. **Format reports** with location, call chain, and suggested fixes
 
-**Detailed output format in [Section 10](./10-error-reporting-diagnostics.md#10-error-reporting--diagnostics).**
+**Detailed output format in [Section 9](./09-error-reporting-diagnostics.md#9-error-reporting--diagnostics).**
 
 **Output:** `Vec<Violation>`

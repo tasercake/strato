@@ -33,7 +33,7 @@ Strato builds a project-wide call graph, propagates "blocking" status through fu
 
 **In scope:** asyncio blocking detection, transitive call graph, SCC propagation, property/dunder detection, executor wrapper recognition, 80+ built-in blocking functions, text/JSON/SARIF output, incremental caching.
 
-**Out of scope:** trio/curio/anyio, dynamic imports, runtime analysis, cross-package analysis, auto-fix, IDE integration. See [Section 12](./12-known-limitations-scope-boundaries.md#12-known-limitations--scope-boundaries) for the full limitations matrix.
+**Out of scope:** trio/curio/anyio, dynamic imports, runtime analysis, cross-package analysis, auto-fix, IDE integration. See [Section 11](./11-known-limitations-scope-boundaries.md#11-known-limitations--scope-boundaries) for the full limitations matrix.
 
 ### Error Codes
 

@@ -1,8 +1,8 @@
-# 3. Design Decisions
+# 2. Design Decisions
 
 This section presents the core architectural and implementation choices that define Strato's approach to detecting blocking calls in async Python code. Each decision is structured as a tradeoff analysis: the context that forced a choice, the options considered, the selection made, the rationale for that selection, and the risks that remain. These decisions are presented for expert review – scrutiny from practitioners in Python async, static analysis/PL, and Rust/tooling domains.
 
-### 3.1 Transitive Call Graph vs Pattern Matching
+### 2.1 Transitive Call Graph vs Pattern Matching
 
 *Tags: async, analysis*
 **Context:** Existing async linters (flake8-async, ruff ASYNC2XX) use pattern matching to detect direct blocking calls inside async functions – they scan for `time.sleep()`, `requests.get()`, etc. within `async def` bodies. This catches obvious cases but fails when blocking code hides behind intermediate function calls. The motivating example is `async def handler(): helper()` where `helper()` internally calls `time.sleep()` – no existing tool detects this because the blocking call is not syntactically visible at the async boundary. The question: should Strato use the same pattern-matching approach (fast, simple, proven) or build a full call graph to trace blocking through function call chains (complex, novel, higher ambition)?
@@ -17,13 +17,13 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** Full transitive call graph (Option 2).
 
-**Rationale:** The entire value proposition of Strato is catching blocking calls that existing tools miss. Pattern matching (Option 1) provides zero incremental value – users already have flake8-async and ruff. The hybrid approach (Option 3) is a half-measure that still requires most of the infrastructure of a full graph (module resolution, symbol tables, call edge extraction) but arbitrarily limits the analysis depth. The full graph approach is the only option that delivers on the promise: if a blocking call is reachable from an async context through any chain of function calls, Strato finds it. The complexity cost is justified by the unique capability. The design mitigates performance risk through SCC-based propagation (O(V+E), not iterative fixpoint) and incremental caching. The false negative risk (unresolvable calls are skipped) is addressed by the precision policy (Decision 3.2) – better to miss some cases than flood users with false positives.
+**Rationale:** The entire value proposition of Strato is catching blocking calls that existing tools miss. Pattern matching (Option 1) provides zero incremental value – users already have flake8-async and ruff. The hybrid approach (Option 3) is a half-measure that still requires most of the infrastructure of a full graph (module resolution, symbol tables, call edge extraction) but arbitrarily limits the analysis depth. The full graph approach is the only option that delivers on the promise: if a blocking call is reachable from an async context through any chain of function calls, Strato finds it. The complexity cost is justified by the unique capability. The design mitigates performance risk through SCC-based propagation (O(V+E), not iterative fixpoint) and incremental caching. The false negative risk (unresolvable calls are skipped) is addressed by the precision policy (Decision 2.2) – better to miss some cases than flood users with false positives.
 
 **Risk:** The call graph approach is unproven in the Python async linting domain. If real-world codebases have too many unresolvable calls (dynamic imports, heavy metaprogramming, complex type flows), the false negative rate could be so high that the tool provides little practical value. The acceptance test suite (Appendix B) is designed to validate coverage on realistic patterns, but production validation will be critical. If the approach fails, there is no fallback – the entire architecture is predicated on the call graph.
 
 ---
 
-### 3.2 Precision Policy: Unknown ≠ Not Blocking
+### 2.2 Precision Policy: Unknown ≠ Not Blocking
 
 *Tags: analysis*
 **Context:** When Strato encounters a call it cannot resolve (e.g., `obj.method()` where `obj`'s type is unknown, or a dynamic import), it must decide: treat the call as potentially blocking (emit a diagnostic) or treat it as unknown (skip silently). This is the classic precision vs. recall tradeoff in static analysis. High recall (flag everything uncertain) maximizes detection but floods users with false positives. High precision (only flag proven cases) minimizes false positives but misses real bugs.
@@ -38,13 +38,13 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** Unknown = Unknown (Option 3).
 
-**Rationale:** Strato is designed for expert review and CI integration. In these contexts, false positives are more damaging than false negatives. A false positive (flagging safe code as blocking) wastes developer time, erodes trust, and leads to tool abandonment. A false negative (missing a real blocking call) is unfortunate but does not actively harm – the bug may be caught by other means (testing, profiling, manual review). The design prioritizes trust: when Strato reports an error, it is confident the error is real. This is reflected in the `BlockingStatus` enum: `Unknown` is a permanent terminal state, never reclassified to `NotBlocking` or `Blocking`. The propagation algorithm (Section 7) explicitly skips `Unknown` nodes – they do not participate in blocking propagation. This policy is consistent with the call graph approach (Decision 3.1): if we can't prove a call is blocking, we don't report it.
+**Rationale:** Strato is designed for expert review and CI integration. In these contexts, false positives are more damaging than false negatives. A false positive (flagging safe code as blocking) wastes developer time, erodes trust, and leads to tool abandonment. A false negative (missing a real blocking call) is unfortunate but does not actively harm – the bug may be caught by other means (testing, profiling, manual review). The design prioritizes trust: when Strato reports an error, it is confident the error is real. This is reflected in the `BlockingStatus` enum: `Unknown` is a permanent terminal state, never reclassified to `NotBlocking` or `Blocking`. The propagation algorithm (Section 6) explicitly skips `Unknown` nodes – they do not participate in blocking propagation. This policy is consistent with the call graph approach (Decision 2.1): if we can't prove a call is blocking, we don't report it.
 
-**Risk:** The false negative rate could be unacceptably high in codebases with heavy use of dynamic typing, metaprogramming, or third-party libraries without type stubs. If Strato misses too many real bugs, users will perceive it as incomplete or unreliable. The mitigation is twofold: (1) ty integration (Decision 3.4) improves type resolution, reducing the `Unknown` rate; (2) user annotations (`@blocking`, `@non_blocking`) allow manual override when Strato's analysis is insufficient.
+**Risk:** The false negative rate could be unacceptably high in codebases with heavy use of dynamic typing, metaprogramming, or third-party libraries without type stubs. If Strato misses too many real bugs, users will perceive it as incomplete or unreliable. The mitigation is twofold: (1) ty integration (Decision 2.4) improves type resolution, reducing the `Unknown` rate; (2) user annotations (`@blocking`, `@non_blocking`) allow manual override when Strato's analysis is insufficient.
 
 ---
 
-### 3.3 SCC-Based Propagation vs Iterative Fixpoint
+### 2.3 SCC-Based Propagation vs Iterative Fixpoint
 
 *Tags: analysis*
 **Context:** After the call graph is constructed and initial blocking annotations are applied, the propagation phase must spread "blocking" status through the graph. If function A calls function B, and B is blocking, then A is also blocking (unless the call is wrapped in an executor). The challenge: call graphs contain cycles (mutual recursion). Naive iterative propagation (repeatedly scan the graph until no changes occur) works but is inefficient – it may require multiple passes over the same nodes, and the number of iterations is unbounded in the presence of complex cycles.
@@ -65,7 +65,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.4 Type Inference Strategy: ty Integration vs Hand-Rolled
+### 2.4 Type Inference Strategy: ty Integration vs Hand-Rolled
 
 *Tags: analysis, tooling*
 **Context:** To resolve method calls (`obj.method()`), property accesses (`obj.prop`), and dunder invocations (`str(obj)`), Strato needs to infer the type of `obj`. One approach is a hand-rolled `ScopeBindings` system that tracks simple cases: `self`/`cls` in methods, constructor calls (`x = MyClass()`), and direct imports. That is sufficient for basic call graph construction but misses common patterns like alias tracking (`x = requests.get; x()`) and return type inference (`loader = get_loader(); loader.load()`). Astral's `ty` crate provides full type inference for Python, including these cases, but integrating it requires adopting Salsa (a query-based incremental computation framework) and accepting the complexity of a pre-1.0 external dependency.
@@ -80,13 +80,13 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** ty integration (Option 2), with no ScopeBindings fallback.
 
-**Rationale:** The key capabilities ty provides – alias tracking and return type inference – are critical for Strato's core use cases. Alias tracking is essential for executor wrapper detection: the pattern `safe = sync_to_async(func); await safe()` requires resolving `safe` back to a callable, which ScopeBindings cannot do. Return type inference enables resolving indirect calls like `get_loader().load()`. The risks (API instability, panics, double parse) are mitigated by: (1) pinning to a specific ruff rev, (2) panic isolation (catch panics, downgrade to `NullTypeResolver` per-file), (3) accepting the double parse cost (<100ms for 500 files). The caching limitation (ty results not cached cross-run) is addressed in Decision 3.13.
+**Rationale:** The key capabilities ty provides – alias tracking and return type inference – are critical for Strato's core use cases. Alias tracking is essential for executor wrapper detection: the pattern `safe = sync_to_async(func); await safe()` requires resolving `safe` back to a callable, which ScopeBindings cannot do. Return type inference enables resolving indirect calls like `get_loader().load()`. The risks (API instability, panics, double parse) are mitigated by: (1) pinning to a specific ruff rev, (2) panic isolation (catch panics, downgrade to `NullTypeResolver` per-file), (3) accepting the double parse cost (<100ms for 500 files). The caching limitation (ty results not cached cross-run) is addressed in Decision 2.13.
 
 **Risk:** ty is pre-1.0 and may have bugs, panics, or API changes. If ty fails on a file, Strato degrades gracefully (emit a warning, skip type-dependent analysis for that file). The pinned rev strategy means Strato is frozen at a specific ruff version – upgrading requires a dedicated compatibility spike.
 
 ---
 
-### 3.5 Phantom Nodes for External Symbols
+### 2.5 Phantom Nodes for External Symbols
 
 *Tags: analysis*
 **Context:** Strato's call graph includes nodes for user-defined functions (parsed from source) and nodes for external blocking functions (stdlib, third-party libraries). How do external symbols like `time.sleep`, `requests.get` become resolvable call graph nodes when their source files are not in the project's source roots?
@@ -101,13 +101,13 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** Phantom nodes (Option 3).
 
-**Rationale:** The phantom node approach is the simplest and most performant. It aligns with Strato's precision policy (Decision 3.2): only known blocking functions are tracked. External calls not in the database are treated as `Unknown` and skipped. During Phase 4 initialization, iterate over the blocking database and create a `CallGraphNode` for each entry with `location: None` and `blocking_status: KnownBlocking`. When the call graph builder encounters `time.sleep(1)`, the symbol resolution constructs the qualified name `"time.sleep"`, finds the phantom node, and creates an edge. The phantom node participates in propagation like any other node.
+**Rationale:** The phantom node approach is the simplest and most performant. It aligns with Strato's precision policy (Decision 2.2): only known blocking functions are tracked. External calls not in the database are treated as `Unknown` and skipped. During Phase 4 initialization, iterate over the blocking database and create a `CallGraphNode` for each entry with `location: None` and `blocking_status: KnownBlocking`. When the call graph builder encounters `time.sleep(1)`, the symbol resolution constructs the qualified name `"time.sleep"`, finds the phantom node, and creates an edge. The phantom node participates in propagation like any other node.
 
 **Risk:** Tightly coupled to the blocking database. If the database is incomplete, calls to unlisted blocking functions will be unresolvable and skipped. The mitigation is a comprehensive database (~80+ entries) and user extensibility (config allows adding custom entries, `@blocking` decorator allows per-function annotation).
 
 ---
 
-### 3.6 Generalized Executor Wrapper System
+### 2.6 Generalized Executor Wrapper System
 
 *Tags: async, analysis*
 **Context:** Python's asyncio provides `loop.run_in_executor()` and `asyncio.to_thread()` to offload blocking work to a thread pool. But real-world codebases use custom wrappers (e.g., `asgiref.sync.sync_to_async`, `anyio.to_thread.run_sync`) and project-specific helpers. Hardcoding every possible wrapper is unmaintainable.
@@ -128,7 +128,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.7 Intervention Strategy for Error Reporting
+### 2.7 Intervention Strategy for Error Reporting
 
 *Tags: async, tooling*
 **Context:** When Strato detects a blocking call chain like `async handler() → helper() → db_query() → psycopg2.connect()`, where should it point the diagnostic? The blocking call is in `psycopg2.connect()` (third-party), but the user can't fix that.
@@ -149,7 +149,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.8 Blocking Database: Curated List vs Exhaustive
+### 2.8 Blocking Database: Curated List vs Exhaustive
 
 *Tags: async*
 **Context:** Strato needs a database of known blocking functions to seed phantom nodes. Should it be exhaustive (every blocking function in stdlib and popular libraries) or curated?
@@ -170,7 +170,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.9 Help Text Policy: No Third-Party Recommendations
+### 2.9 Help Text Policy: No Third-Party Recommendations
 
 *Tags: async, tooling*
 **Context:** Diagnostics include help text suggesting how to fix the issue. Should help text recommend specific third-party libraries?
@@ -191,7 +191,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.10 Language Choice: Rust
+### 2.10 Language Choice: Rust
 
 *Tags: tooling*
 **Context:** Strato is a static analysis tool that must parse Python code, build a call graph, and propagate blocking status.
@@ -212,7 +212,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.11 Distribution: Dual PyPI Packages
+### 2.11 Distribution: Dual PyPI Packages
 
 *Tags: tooling*
 **Context:** Strato consists of a Rust binary (analysis tool) and a Python package (`@blocking`/`@non_blocking`/`@unblocker` decorators).
@@ -233,7 +233,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.12 Import Resolution: Scope Limits
+### 2.12 Import Resolution: Scope Limits
 
 *Tags: analysis, tooling*
 **Context:** Python's import system is extremely flexible – dynamic imports, import hooks, `.pth` files, namespace packages, conditional imports. Strato must decide which import forms to support and which to exclude.
@@ -248,13 +248,13 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** Static imports + pragmatic extensions (Option 3).
 
-**Rationale:** Star imports and namespace packages are common in real-world code. The v1.1 extensions address the most common gaps without crossing into intractable territory. Unresolvable imports are treated as `Unknown` (Decision 3.2) and skipped silently.
+**Rationale:** Star imports and namespace packages are common in real-world code. The v1.1 extensions address the most common gaps without crossing into intractable territory. Unresolvable imports are treated as `Unknown` (Decision 2.2) and skipped silently.
 
 **Risk:** Codebases using `importlib.import_module()` extensively will have many unresolvable imports, leading to false negatives. Mitigated by `@blocking` decorator for manual annotation.
 
 ---
 
-### 3.13 Caching Strategy and ty Boundary
+### 2.13 Caching Strategy and ty Boundary
 
 *Tags: tooling*
 **Context:** Strato's seven-phase pipeline has cacheable per-file phases (Parse, Resolve) and cross-file phases (Build, Propagate, Report). ty's Salsa database is in-memory only, not serializable.
@@ -275,7 +275,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.14 Determinism Contract
+### 2.14 Determinism Contract
 
 *Tags: tooling*
 **Context:** Strato is designed for CI integration, where non-deterministic output causes flaky builds and erodes trust.
@@ -294,7 +294,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.15 Failure and Warning Policy
+### 2.15 Failure and Warning Policy
 
 *Tags: tooling*
 **Context:** The analysis pipeline can encounter parse errors, unresolvable imports, ty panics, and I/O errors.
@@ -315,7 +315,7 @@ This section presents the core architectural and implementation choices that def
 
 ---
 
-### 3.16 Async Scope Boundary: asyncio Only
+### 2.16 Async Scope Boundary: asyncio Only
 
 *Tags: async*
 **Context:** Python has multiple async frameworks: asyncio (stdlib), trio, curio, anyio. Each has its own event loop, task model, and blocking semantics.
@@ -330,6 +330,6 @@ This section presents the core architectural and implementation choices that def
 
 **Choice:** asyncio only (Option 1).
 
-**Rationale:** asyncio is the stdlib framework and the most widely used. Supporting multiple frameworks would require tracking each framework's APIs. The architecture supports future expansion – the executor wrapper registry (Decision 3.6) is already generalized, and adding trio/anyio patterns is straightforward in v2.
+**Rationale:** asyncio is the stdlib framework and the most widely used. Supporting multiple frameworks would require tracking each framework's APIs. The architecture supports future expansion – the executor wrapper registry (Decision 2.6) is already generalized, and adding trio/anyio patterns is straightforward in v2.
 
 **Risk:** Users of trio, curio, or anyio cannot use Strato in v1. Mitigated by clear scope documentation and a v2 roadmap.

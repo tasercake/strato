@@ -1,6 +1,6 @@
-# 8. Blocking Function Database & Annotations
+# 7. Blocking Function Database & Annotations
 
-### 8.1 Database Structure
+### 7.1 Database Structure
 
 The blocking database is a registry of functions known to block the event loop. It ships with Strato and is extended via configuration.
 
@@ -33,9 +33,9 @@ enum EntrySource {
 }
 ```
 
-### 8.2 Built-In Entries
+### 7.2 Built-In Entries
 
-> **Decision recap ([3.8](./03-design-decisions.md#38-blocking-database-curated-list-vs-exhaustive))**: Strato ships a curated database of ~80 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
+> **Decision recap ([2.8](./02-design-decisions.md#28-blocking-database-curated-list-vs-exhaustive))**: Strato ships a curated database of ~80 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
 
 Strato ships with 80+ built-in blocking function entries across six categories. The complete database is provided in [Appendix A](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete). Representative examples by category:
 
@@ -63,9 +63,9 @@ Strato ships with 80+ built-in blocking function entries across six categories. 
 | `sqlite3.connect` | Use `aiosqlite` |
 | `builtins.input` | Use async input library or `run_in_executor` |
 
-> **Decision recap ([3.9](./03-design-decisions.md#39-help-text-policy-no-third-party-recommendations))**: Help text suggests async alternatives generically, never recommending one third-party library over another. When multiple options exist, all are listed neutrally (e.g., "Use `aiohttp` or `httpx`").
+> **Decision recap ([2.9](./02-design-decisions.md#29-help-text-policy-no-third-party-recommendations))**: Help text suggests async alternatives generically, never recommending one third-party library over another. When multiple options exist, all are listed neutrally (e.g., "Use `aiohttp` or `httpx`").
 
-### 8.3 User Configuration
+### 7.3 User Configuration
 
 Users can add, remove, or override entries in `pyproject.toml`:
 
@@ -94,7 +94,7 @@ blocking_modules = [
 - **`remove`**: Excludes built-in entries that are false positives for the project (e.g., monkeypatched functions).
 - **`blocking_modules`**: Treats all functions in the specified modules as blocking, without enumerating them individually.
 
-### 8.4 Annotations API (@blocking, @non_blocking, @unblocker)
+### 7.4 Annotations API (@blocking, @non_blocking, @unblocker)
 
 The `strato` Python package provides three decorators for annotating function blocking behavior. The package has zero dependencies and zero runtime impact – decorators are transparent wrappers.
 
@@ -186,7 +186,7 @@ def unblocker(func: F = None, *, callable_param: int | str = 0) -> F | Callable[
     return decorator
 ```
 
-> **Decision recap ([3.6](./03-design-decisions.md#36-generalized-executor-wrapper-system))**: The `@unblocker` decorator is a v1.1 addition enabling user-defined executor wrappers. It generalizes the hardcoded `run_in_executor`/`to_thread` patterns.
+> **Decision recap ([2.6](./02-design-decisions.md#26-generalized-executor-wrapper-system))**: The `@unblocker` decorator is a v1.1 addition enabling user-defined executor wrappers. It generalizes the hardcoded `run_in_executor`/`to_thread` patterns.
 
 #### Annotation Detection Algorithm
 
@@ -226,7 +226,7 @@ FUNCTION detect_annotations(func_def: &StmtFunctionDef) -> Option<AnnotationType
 
 **Import resolution**: `is_imported_from_strato()` checks whether the decorator name was imported from the `strato` package, preventing false positives from unrelated decorators with the same name.
 
-### 8.5 Stub File Support (.pyi)
+### 7.5 Stub File Support (.pyi)
 
 Strato supports `.pyi` stub files for annotating third-party libraries without modifying their source code.
 

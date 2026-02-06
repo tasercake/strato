@@ -1,8 +1,8 @@
-# 7. Blocking Propagation
+# 6. Blocking Propagation
 
-> **Decision recap**: [Decision 3.3](./03-design-decisions.md#33-scc-based-propagation-vs-iterative-fixpoint) – Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
+> **Decision recap**: [Decision 2.3](./02-design-decisions.md#23-scc-based-propagation-vs-iterative-fixpoint) – Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
 
-### 7.1 The Fixpoint Problem
+### 6.1 The Fixpoint Problem
 
 Naive iterative propagation has a fundamental problem: **cycles in the call graph** (mutual recursion):
 
@@ -20,7 +20,7 @@ A naive fixpoint algorithm would iterate: "Is foo blocking? Check if bar is bloc
 
 The key insight: cycles (mutual recursion) make naive fixpoint iteration risky. SCC decomposition eliminates cycles by collapsing each cycle into a single node, producing a directed acyclic graph (DAG) of SCCs. A topological ordering of this DAG ensures that when we process an SCC, all of its callees have already been processed. This guarantees single-pass propagation with no backtracking.
 
-### 7.2 SCC-Based Algorithm
+### 6.2 SCC-Based Algorithm
 
 ```
 FUNCTION propagate_blocking(graph: &mut CallGraph):
@@ -31,7 +31,7 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
 
   // Step 2: Build condensation graph (DAG of SCCs)
   // Each SCC becomes a single node. Edges between SCCs are AGGREGATED
-  // per the edge aggregation rule (Section 7.3).
+  // per the edge aggregation rule (Section 6.3).
   condensation = build_condensation(graph, sccs)
 
   // Step 3: Topological sort of condensation (reverse post-order)
@@ -87,7 +87,7 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
           func.blocking_reason = trace_blocking_path(func, graph)
 ```
 
-### 7.3 Edge Aggregation Rules
+### 6.3 Edge Aggregation Rules
 
 When collapsing edges between SCCs during condensation graph construction, the aggregated edge's `all_calls_in_executor` property is computed as follows:
 
@@ -114,7 +114,7 @@ The condensed edge from SCC_A to SCC_B has `all_calls_in_executor = false` becau
 
 **Induced edges from unblockers**: When an `@unblocker` decorator or configured executor wrapper induces an edge (e.g., `sync_to_async(blocking_func)` creates an edge from the wrapper call site to `blocking_func`), that induced edge participates in the same aggregation rule. If the induced edge is marked `in_executor = true` (which it should be, since the wrapper's purpose is to offload), it does not propagate blocking.
 
-### 7.4 Blocking Path Tracing
+### 6.4 Blocking Path Tracing
 
 For error reporting, we need to know *how* a function became blocking – the chain from the async context to the ultimate blocking call. This is stored during propagation:
 
@@ -193,7 +193,7 @@ FUNCTION select_blocking_reason(func, graph) -> BlockingReason:
   RETURN all_paths[0]  // Shortest path, lexicographically first root on ties
 ```
 
-### 7.5 Complexity Analysis
+### 6.5 Complexity Analysis
 
 | Step | Algorithm | Complexity |
 |------|-----------|------------|

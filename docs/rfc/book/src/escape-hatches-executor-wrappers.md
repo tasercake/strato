@@ -1,6 +1,6 @@
-# 9. Escape Hatches & Executor Wrappers
+# 8. Escape Hatches & Executor Wrappers
 
-### 9.1 Built-In Patterns
+### 8.1 Built-In Patterns
 
 An "escape hatch" is a pattern that correctly offloads a blocking call to a thread pool, making it safe to use in async contexts. Strato recognizes four built-in patterns (asyncio only in v1):
 
@@ -23,7 +23,7 @@ await loop.run_in_executor(None, lambda: blocking_func(arg1))
 
 **Key property**: When an escape hatch is detected, the callable argument (the function being offloaded) is protected. Blocking status does NOT propagate backward through edges marked `in_executor=true`.
 
-### 9.2 Detection Mechanism
+### 8.2 Detection Mechanism
 
 During call edge construction (Phase 4), the visitor checks if the current call expression matches an escape hatch pattern.
 
@@ -106,9 +106,9 @@ WHEN is_executor_call(call) is true:
 
 **Executor scope rule**: Only the CALLABLE ARGUMENT position gets `in_executor=true` protection. In `loop.run_in_executor(executor, func, arg1, arg2)`: arg[0] (executor) is NOT protected, arg[1] (func) IS protected, arg[2..] (data arguments) are NOT protected.
 
-### 9.3 Generalized Wrapper Registry
+### 8.3 Generalized Wrapper Registry
 
-> **Decision recap ([3.6](./03-design-decisions.md#36-generalized-executor-wrapper-system))**: Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry, enabling user-defined executor wrappers.
+> **Decision recap ([2.6](./02-design-decisions.md#26-generalized-executor-wrapper-system))**: Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry, enabling user-defined executor wrappers.
 
 ```rust
 struct EscapeHatchRegistry {
@@ -137,7 +137,7 @@ vec![
 
 **Note**: `run_in_executor` is detected structurally via `is_likely_event_loop()` rather than by qualified name. This structural detection is a special case outside the registry.
 
-### 9.4 Configuration Schema
+### 8.4 Configuration Schema
 
 Users can add custom escape hatches in `pyproject.toml`:
 
@@ -155,6 +155,6 @@ Users can add custom escape hatches in `pyproject.toml`:
 - **Value**: Object with `callable_param` field – integer (positional index, 0-based) or string (keyword argument name)
 - Duplicate keys are rejected (last one wins, with a warning)
 
-**The `@unblocker` decorator** provides an alternative to configuration for first-party wrappers (see [Section 8.4](./08-blocking-function-database-annotations.md#84-annotations-api-blocking-non_blocking-unblocker)).
+**The `@unblocker` decorator** provides an alternative to configuration for first-party wrappers (see [Section 7.4](./07-blocking-function-database-annotations.md#74-annotations-api-blocking-non_blocking-unblocker)).
 
 **Precedence**: Annotations take precedence over configuration. If a function has both `@unblocker` and a `[tool.strato.executor-wrappers]` entry, the annotation wins.
