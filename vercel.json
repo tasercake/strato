@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.5.2/mdbook-v0.5.2-x86_64-unknown-linux-gnu.tar.gz | tar -xz",
-  "buildCommand": "./mdbook build docs/rfc/book",
-  "outputDirectory": "docs/rfc/book/book"
+  "buildCommand": "./mdbook build docs/book",
+  "outputDirectory": "docs/book/book"
 }
