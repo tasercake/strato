@@ -245,9 +245,7 @@ hr {
 }
 
 .content main {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-  max-width: var(--content-max-width);
+  /* max-width: var(--content-max-width); */
   min-width: 0;
   flex: 1;
 }

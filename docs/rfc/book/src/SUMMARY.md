@@ -1,8 +1,10 @@
-# Summary
+# a
 
 [Introduction](intro.md)
 
 ---
+
+# Proposal
 
 - [Problem Statement & Motivation](problem-statement-motivation.md)
 - [Design Decisions](design-decisions.md)

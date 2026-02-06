@@ -69,7 +69,7 @@
             <div>
                 <p>Press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd> to navigate between chapters</p>
                 {{#if search_enabled}}
-                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>⌘K</kbd> or <kbd>Ctrl+K</kbd> to search</p>
                 {{/if}}
                 <p>Press <kbd>?</kbd> to show this help</p>
                 <p>Press <kbd>Esc</kbd> to hide this help</p>
@@ -154,11 +154,38 @@
                     </div>
 
                     {{#if search_enabled}}
-                    <button id="mdbook-search-toggle" class="search-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
-                        {{fa "solid" "magnifying-glass" "icon"}}
-                        <span class="placeholder">Search docs&#x2026;</span>
-                        <kbd>S</kbd>
-                    </button>
+                    <div class="header-search-container">
+                        <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                            <div class="search-input-wrapper">
+                                {{fa "solid" "magnifying-glass" "search-icon"}}
+                                <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search docs..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                                <kbd class="search-shortcut"><span class="search-shortcut-key"></span></kbd>
+                            </div>
+                        </form>
+                        <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                            <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                            <ul id="mdbook-searchresults"></ul>
+                        </div>
+                    </div>
+                    <script>
+                    (function() {
+                        var isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                        var shortcutEl = document.querySelector('.search-shortcut-key');
+                        if (shortcutEl) {
+                            shortcutEl.textContent = isMac ? '⌘K' : 'Ctrl+K';
+                        }
+                        document.addEventListener('keydown', function(e) {
+                            if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'k') {
+                                e.preventDefault();
+                                var searchInput = document.getElementById('mdbook-searchbar');
+                                if (searchInput) {
+                                    searchInput.focus();
+                                    searchInput.select();
+                                }
+                            }
+                        });
+                    })();
+                    </script>
                     {{/if}}
 
                     <div class="right-buttons right-container">
@@ -182,23 +209,7 @@
                     </div>
                 </div>
 
-                {{#if search_enabled}}
-                <div id="mdbook-search-wrapper" class="hidden">
-                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
-                        <div class="search-wrapper">
-                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
-                            <div class="spinner-wrapper">
-                                {{fa "solid" "spinner" "fa-spin"}}
-                            </div>
-                        </div>
-                    </form>
-                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
-                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
-                        <ul id="mdbook-searchresults">
-                        </ul>
-                    </div>
-                </div>
-                {{/if}}
+
 
                 <script>
                     document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
