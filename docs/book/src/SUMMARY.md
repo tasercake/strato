@@ -1,12 +1,12 @@
-# a
+# Summary
 
-[Introduction](intro.md)
+- [Introduction](intro.md)
+- [Motivation](problem-statement-motivation.md)
 
 ---
 
-# Proposal
+# Design
 
-- [Problem Statement & Motivation](problem-statement-motivation.md)
 - [Design Decisions](design-decisions.md)
 - [Architecture Overview](architecture-overview.md)
 - [Analysis Pipeline](analysis-pipeline.md)

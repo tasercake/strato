@@ -32,8 +32,15 @@ body {
 
 #mdbook-body-container {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   height: 100vh;
+  overflow: hidden;
+}
+
+#mdbook-main-container {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
   overflow: hidden;
   overflow-x: clip;
 }
@@ -199,7 +206,7 @@ hr {
 }
 
 :target {
-  scroll-margin-top: calc(var(--menu-bar-height) + 2rem);
+  scroll-margin-top: 2rem;
 }
 
 .page-wrapper {
@@ -236,7 +243,7 @@ hr {
 }
 
 .content {
-  padding: 48px 32px 0 32px;
+  padding: 0 48px;
   display: flex;
   justify-content: space-between;
   gap: 36px;

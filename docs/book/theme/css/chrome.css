@@ -35,8 +35,7 @@ a > .hljs {
 }
 
 .header-bar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   padding: 12px 24px;
   background-color: var(--sidebar-bg);
@@ -355,7 +354,7 @@ ul#searchresults span.teaser em {
 
 .sidebar {
   position: relative;
-  width: var(--sidebar-width);
+  width: var(--sidebar-target-width, var(--sidebar-width));
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -363,7 +362,7 @@ ul#searchresults span.teaser em {
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: none;
-  overflow: hidden;
+  overflow: visible;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   border-right: 1px solid var(--divider);
@@ -431,10 +430,9 @@ ul#searchresults span.teaser em {
 @media only screen and (max-width: 780px) {
   .sidebar {
     position: fixed;
-    top: 0;
+    top: var(--menu-bar-height);
     left: 0;
-    height: 100vh;
-    padding-top: 57px;
+    height: calc(100vh - var(--menu-bar-height));
     transform: translateX(-100%);
     z-index: 99;
     transition: transform 0.1s ease;
@@ -564,6 +562,52 @@ ul#searchresults span.teaser em {
   list-style: none outside none;
   padding-inline-start: 1ch;
   line-height: 1.9em;
+}
+
+/* Wrapper span around chapter link + fold chevron */
+.chapter-link-wrapper {
+  display: flex;
+}
+
+/* Fold toggle chevron */
+.chapter-fold-toggle {
+  cursor: pointer;
+  margin-inline-start: auto;
+  padding: 0 10px;
+  user-select: none;
+  opacity: 0.68;
+}
+
+.chapter-fold-toggle:hover {
+  opacity: 1;
+}
+
+.chapter-fold-toggle div {
+  transition: transform 0.5s;
+}
+
+.chapter li:not(.expanded) > ol {
+  display: none;
+}
+
+.chapter li.expanded > span > .chapter-fold-toggle div {
+  transform: rotate(90deg);
+}
+
+/* "On this page" header nav container */
+.on-this-page {
+  margin-left: 22px;
+  border-inline-start: 4px solid var(--sidebar-header-border-color);
+  padding-left: 8px;
+}
+
+.on-this-page > ol {
+  padding-left: 0;
+}
+
+/* Current header highlight in sidebar */
+.chapter a.current-header {
+  color: var(--sidebar-active);
 }
 
 .theme-popup {
@@ -716,7 +760,7 @@ ul#searchresults span.teaser em {
   display: none;
 }
 
-#mdbook-sidebar-toggle-anchor:not(:checked) ~ .sidebar {
+#mdbook-sidebar-toggle-anchor:not(:checked) ~ #mdbook-main-container > .sidebar {
   display: none;
 }
 
@@ -788,25 +832,24 @@ ul#searchresults span.teaser em {
     right: 15px;
   }
 
-  #mdbook-sidebar-toggle-anchor:not(:checked) ~ .sidebar {
+  #mdbook-sidebar-toggle-anchor:not(:checked) ~ #mdbook-main-container > .sidebar {
     display: flex;
     position: fixed;
-    top: 0;
+    top: var(--menu-bar-height);
     left: 0;
-    height: 100vh;
-    padding-top: 57px;
+    height: calc(100vh - var(--menu-bar-height));
     transform: translateX(-100%);
     z-index: 99;
     transition: transform 0.1s ease;
   }
 
-  body.sidebar-open #mdbook-sidebar-toggle-anchor:not(:checked) ~ .sidebar,
-  #mdbook-sidebar-toggle-anchor:checked ~ .sidebar {
+  body.sidebar-open #mdbook-sidebar-toggle-anchor:not(:checked) ~ #mdbook-main-container > .sidebar,
+  #mdbook-sidebar-toggle-anchor:checked ~ #mdbook-main-container > .sidebar {
     transform: translateX(0);
     box-shadow: var(--sidebar-mobile-shadow);
   }
 
-  #mdbook-sidebar-toggle-anchor:checked ~ .page-wrapper {
+  #mdbook-sidebar-toggle-anchor:checked ~ #mdbook-main-container > .page-wrapper {
     margin-inline-start: 0;
   }
 }

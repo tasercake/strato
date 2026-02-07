@@ -1,13 +1,13 @@
 .pagetoc {
   box-sizing: border-box;
   position: sticky;
-  top: 50px;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 28px 0 120px 0;
   width: 200px;
-  max-height: calc(100svh - 50px);
+  max-height: 100svh;
   overflow-x: hidden;
 }
 .pagetoc > :last-child {

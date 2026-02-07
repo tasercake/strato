@@ -30,7 +30,7 @@ Check direct calls in async functions, plus check the immediate callees of those
 
 ---
 
-### 2.2 Precision Policy: Unknown ≠ Not Blocking
+### 2.2 Precision Policy
 
 When Strato encounters a call it cannot resolve (e.g., `obj.method()` where `obj`'s type is unknown, or a dynamic import), it must decide: treat the call as potentially blocking (emit a diagnostic) or treat it as unknown (skip silently). This is the classic precision vs. recall tradeoff in static analysis. High recall (flag everything uncertain) maximizes detection but floods users with false positives. High precision (only flag proven cases) minimizes false positives but misses real bugs.
 
@@ -58,7 +58,7 @@ Any unresolvable call is assumed safe. Only emit diagnostics for proven blocking
 
 ---
 
-### 2.3 SCC-Based Propagation vs Iterative Fixpoint
+### 2.3 Blocking propagation
 
 After the call graph is constructed and initial blocking annotations are applied, the propagation phase must spread "blocking" status through the graph: if function A calls function B, and B is blocking, then A is also blocking (unless the call is wrapped in an executor). The challenge is that call graphs contain cycles (mutual recursion). Naive iterative propagation (repeatedly scan the graph until no changes occur) works but is inefficient – it may require multiple passes over the same nodes, and the number of iterations is unbounded in the presence of complex cycles.
 
@@ -86,7 +86,7 @@ Maintain a worklist of nodes whose blocking status has changed. When a node's st
 
 ---
 
-### 2.4 Type Inference Strategy: ty Integration vs Hand-Rolled
+### 2.4 Type Inference
 
 To resolve method calls (`obj.method()`), property accesses (`obj.prop`), and dunder invocations (`str(obj)`), Strato needs to infer the type of `obj`. A hand-rolled `ScopeBindings` system could track simple cases – `self`/`cls` in methods, constructor calls (`x = MyClass()`), and direct imports – but this misses common patterns like alias tracking (`x = requests.get; x()`) and return type inference (`loader = get_loader(); loader.load()`). These capabilities are critical: alias tracking is essential for executor wrapper detection (the pattern `safe = sync_to_async(func); await safe()` requires resolving `safe` back to a callable), and return type inference enables resolving indirect calls like `get_loader().load()`.
 
@@ -114,7 +114,7 @@ Use ScopeBindings for simple cases, query ty for complex cases.
 
 ---
 
-### 2.5 Phantom Nodes for External Symbols
+### 2.5 Phantom Nodes
 
 Strato's call graph includes nodes for user-defined functions (parsed from source) and nodes for external blocking functions (stdlib, third-party libraries). External symbols like `time.sleep` and `requests.get` need to become resolvable call graph nodes even though their source files are not in the project's source roots.
 
@@ -142,7 +142,7 @@ Provide hand-written `.pyi` stubs for known blocking functions.
 
 ---
 
-### 2.6 Generalized Executor Wrapper System
+### 2.6 Escape Hatches
 
 Python's asyncio provides `loop.run_in_executor()` and `asyncio.to_thread()` to offload blocking work to a thread pool, but real-world codebases use custom wrappers (e.g., `asgiref.sync.sync_to_async`, `anyio.to_thread.run_sync`) and project-specific helpers. Hardcoding every possible wrapper is unmaintainable.
 
@@ -170,7 +170,7 @@ Analyze function bodies to detect patterns like "creates a thread".
 
 ---
 
-### 2.7 Intervention Strategy for Error Reporting
+### 2.7 Error reporting
 
 When Strato detects a blocking call chain like `async handler() → helper() → db_query() → psycopg2.connect()`, the diagnostic must point somewhere actionable. The blocking call is in `psycopg2.connect()` (third-party, unfixable), so the question is where to direct the user's attention.
 
@@ -198,7 +198,7 @@ Always point to the deepest first-party function in the chain.
 
 ---
 
-### 2.8 Blocking Database: Curated List vs Exhaustive
+### 2.8 Blocking Database
 
 Strato needs a database of known blocking functions to seed phantom nodes (Decision 2.5). An exhaustive database covering every blocking function in stdlib and popular libraries would maximize coverage but create a massive maintenance burden and high risk of false positives for functions that are technically blocking but fast (e.g., `os.getpid()`).
 
@@ -226,7 +226,7 @@ Only the most egregious offenders.
 
 ---
 
-### 2.9 Help Text Policy: No Third-Party Recommendations
+### 2.9 Help Text Policy
 
 Diagnostics include help text suggesting how to fix the issue. Strato uses generic recommendations – "use an async HTTP library" or "offload to `asyncio.to_thread()`" – listing multiple alternatives without prescribing one. This keeps help text neutral and timeless: Strato is a linting tool, not a library recommendation engine. Where alternatives exist (e.g., `aiohttp` or `httpx`), they are listed neutrally without implicit endorsement.
 
@@ -252,7 +252,7 @@ Only report the problem.
 
 ---
 
-### 2.10 Language Choice: Rust
+### 2.10 Language Choice
 
 Strato is a static analysis tool that must parse Python code, build a call graph, and propagate blocking status – performance is critical for CI integration. Strato is written in Rust using ruff's parser crates, which provide the fastest Python parser available, strong type safety, and a single-binary distribution model via maturin. The 500-file benchmark targets sub-5-second fresh analysis and sub-500ms cached; Python cannot achieve this for graph algorithms at scale, and Go lacks an existing Python parser ecosystem.
 
@@ -277,7 +277,7 @@ Using `ast` module.
 
 ---
 
-### 2.11 Distribution: Dual PyPI Packages
+### 2.11 Distribution
 
 Strato consists of a Rust binary (analysis tool) and a Python package (`@blocking`/`@non_blocking`/`@unblocker` decorators). These are distributed as two packages: `strato` (pure Python, annotations only, zero deps, <10KB) and `strato-cli` (Rust binary via maturin). This achieves "zero binary footprint in production" – the `strato` package can be added to production dependencies with no overhead, while `strato-cli` is installed only in dev/CI environments. Independent versioning means annotations (stable API) can evolve separately from the analysis tool (frequent updates).
 
@@ -303,7 +303,7 @@ No annotations package.
 
 ---
 
-### 2.12 Import Resolution: Scope Limits
+### 2.12 Import Resolution
 
 Python's import system is extremely flexible – dynamic imports, import hooks, `.pth` files, namespace packages, conditional imports – and Strato must decide which forms to support. Strato supports static imports plus pragmatic extensions (v1.1): (a) star imports via literal `__all__` + public names fallback (one level only), (b) basic namespace packages within configured source roots, (c) conditional imports (first branch only). Dynamic imports, import hooks, and `.pth` files are excluded. Star imports and namespace packages are common in real-world code, and addressing them avoids a major source of false negatives without crossing into intractable territory. Unresolvable imports are treated as `Unknown` (Decision 2.2) and skipped silently.
 
@@ -329,7 +329,7 @@ Absolute, from-import, relative only.
 
 ---
 
-### 2.13 Caching Strategy and ty Boundary
+### 2.13 Caching Strategy
 
 Strato's seven-phase pipeline has cacheable per-file phases (Parse, Resolve) and cross-file phases (Build, Propagate, Report). ty's Salsa database is in-memory only and not serializable, which constrains the caching design. Strato caches Phases 1-3 results (parse + imports) keyed by file content hash and re-runs Phases 4-7 (call graph construction + propagation) every time. This is the only option compatible with ty – Salsa's in-run memoization handles repeated queries within a single analysis run, but cross-run persistence is not supported. Per-file caching skips parsing (the expensive phase) while accepting that graph construction and propagation re-run at O(V+E). Target: <500ms cached on 500 files.
 
@@ -401,7 +401,7 @@ All errors become warnings.
 
 ---
 
-### 2.16 Async Scope Boundary: asyncio Only
+### 2.16 Async Library Support
 
 Python has multiple async frameworks – asyncio (stdlib), trio, curio, anyio – each with its own event loop, task model, and blocking semantics. Strato targets asyncio only in v1: it is the stdlib framework and the most widely used. Supporting multiple frameworks would require tracking each framework's distinct APIs, which adds complexity without proportionate value at launch. The architecture supports future expansion – the executor wrapper registry (Decision 2.6) is already generalized, and adding trio/anyio patterns is straightforward in v2.
 
