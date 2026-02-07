@@ -7,7 +7,7 @@
 
 # Design
 
-- [Design Decisions](design-decisions.md)
+- [Design Overview](design-overview.md)
 - [Architecture Overview](architecture-overview.md)
 - [Analysis Pipeline](analysis-pipeline.md)
 - [Call Graph & Type Resolution](call-graph-type-resolution.md)

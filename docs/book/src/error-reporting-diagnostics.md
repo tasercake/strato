@@ -1,6 +1,6 @@
 # 9. Error Reporting & Diagnostics
 
-> **Decision recap:** [Decision 2.7](./02-design-decisions.md#27-intervention-strategy-for-error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Decision 2.14](./02-design-decisions.md#214-determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
+> **Decision recap:** [Decision 2.7](./02-design-overview.md#27-intervention-strategy-for-error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Decision 2.14](./02-design-overview.md#214-determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
 
 [async] [tooling]
 

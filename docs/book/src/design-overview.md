@@ -1,4 +1,4 @@
-# 2. Design Decisions
+# 2. Design Overview
 
 This section presents the core architectural and implementation choices that define Strato's approach to detecting blocking calls in async Python code. Each decision is structured as a tradeoff analysis: the problem that forced a choice, the decision made, the alternatives considered, and the risks that remain. These decisions are presented for expert review – scrutiny from practitioners in Python async, static analysis/PL, and Rust/tooling domains.
 

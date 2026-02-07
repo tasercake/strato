@@ -4,7 +4,7 @@
 
 ### 11.1 Type System Limitations
 
-Strato's type resolution depends on the `ty` crate for inference. When `ty` cannot determine a type, the call is skipped silently per [Decision 2.2](./02-design-decisions.md#22-precision-policy-unknown--not-blocking).
+Strato's type resolution depends on the `ty` crate for inference. When `ty` cannot determine a type, the call is skipped silently per [Decision 2.2](./02-design-overview.md#22-precision-policy-unknown--not-blocking).
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
@@ -49,7 +49,7 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
-| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Decision 2.16](./02-design-decisions.md#216-async-scope-boundary-asyncio-only)) |
+| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Decision 2.16](./02-design-overview.md#216-async-scope-boundary-asyncio-only)) |
 | **No runtime analysis** | Cannot detect blocking calls conditionally skipped at runtime. | Use runtime profiling tools to complement. | v1 – static only |
 | **No inter-process analysis** | Blocking calls in subprocesses invisible. | Subprocess code is isolated from event loop. | v1 – out of scope |
 | **Single-project only** | Does not traverse into installed third-party packages. | Extend blocking database via config. | v1 – first-party focus |
@@ -57,7 +57,7 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 
 ### 11.5 "Skip Silently" Behavior
 
-Strato follows a **high-precision policy** ([Decision 2.2](./02-design-decisions.md#22-precision-policy-unknown--not-blocking)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
+Strato follows a **high-precision policy** ([Decision 2.2](./02-design-overview.md#22-precision-policy-unknown--not-blocking)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
 
 | Case | Behavior | Rationale |
 |------|----------|-----------|

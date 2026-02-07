@@ -108,7 +108,7 @@ WHEN is_executor_call(call) is true:
 
 ### 8.3 Generalized Wrapper Registry
 
-> **Decision recap ([2.6](./02-design-decisions.md#26-generalized-executor-wrapper-system))**: Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry, enabling user-defined executor wrappers.
+> **Decision recap ([2.6](./02-design-overview.md#26-generalized-executor-wrapper-system))**: Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry, enabling user-defined executor wrappers.
 
 ```rust
 struct EscapeHatchRegistry {

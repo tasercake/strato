@@ -1,6 +1,6 @@
 # 10. Supporting Systems
 
-> **Decision recap:** [Decision 2.13](./02-design-decisions.md#213-caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Decision 2.11](./02-design-decisions.md#211-distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
+> **Decision recap:** [Decision 2.13](./02-design-overview.md#213-caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Decision 2.11](./02-design-overview.md#211-distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
 
 [tooling]
 

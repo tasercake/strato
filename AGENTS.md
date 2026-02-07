@@ -29,7 +29,7 @@ strato/
 |------|----------|-------|
 | Understand the tool | `docs/book/src/intro.md` | Start here |
 | Architecture & pipeline | `docs/book/src/architecture-overview.md` | 7-phase pipeline diagram |
-| Design tradeoffs | `docs/book/src/design-decisions.md` | 16 decisions with alternatives |
+| Design tradeoffs | `docs/book/src/design-overview.md` | 16 decisions with alternatives |
 | Planned repo layout | `docs/book/src/appendix-e-repository-structure-implementation-plan.md` | Rust workspace + Python pkg |
 | Acceptance tests | `docs/book/src/appendix-b-acceptance-test-cases.md` | 19 fixture definitions |
 | Config schema | `docs/book/src/appendix-d-configuration-schema.md` | `[tool.strato]` spec |
