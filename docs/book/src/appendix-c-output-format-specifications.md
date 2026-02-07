@@ -1,6 +1,6 @@
 # Appendix C: Output Format Specifications
 
-### C.1 Text Format
+### Text Format
 
 The text format is the default human-readable output, providing compiler-style diagnostics with source context.
 
@@ -34,7 +34,7 @@ STRATO002: Async function 'handler' calls blocking function 'helper'
 Found 1 blocking issue in 1 file (2 functions analyzed)
 ```
 
-### C.2 JSON Format
+### JSON Format
 
 Machine-readable structured output for programmatic consumption and CI integration.
 
@@ -167,7 +167,7 @@ Machine-readable structured output for programmatic consumption and CI integrati
 
 **Ordering:** `diagnostics` sorted by file path, line, column. `chain` ordered from async entry to blocking call. Phantom node locations serialize as `null`.
 
-### C.3 SARIF v2.1.0 Format
+### SARIF v2.1.0 Format
 
 Compatible with GitHub Code Scanning, Azure DevOps, and CI/CD platforms supporting SARIF v2.1.0.
 

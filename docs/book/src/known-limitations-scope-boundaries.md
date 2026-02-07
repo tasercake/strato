@@ -1,10 +1,10 @@
-# 11. Known Limitations & Scope Boundaries
+# Known Limitations & Scope Boundaries
 
 **Tags**: everyone
 
-### 11.1 Type System Limitations
+### Type System Limitations
 
-Strato's type resolution depends on the `ty` crate for inference. When `ty` cannot determine a type, the call is skipped silently per [Decision 2.2](./02-design-overview.md#22-precision-policy-unknown--not-blocking).
+Strato's type resolution depends on the `ty` crate for inference. When `ty` cannot determine a type, the call is skipped silently per the [Precision Policy](./design-overview.md#precision-policy-unknown--not-blocking).
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
@@ -15,7 +15,7 @@ Strato's type resolution depends on the `ty` crate for inference. When `ty` cann
 | **Generic type parameters** | `T` in `def process(x: T) -> T` is not resolved. Method calls on `x` are unresolvable. | Use concrete types or `@blocking` annotations. | v1 – no generics support |
 | **Union types** | `x: Union[A, B]` – Strato does not track which branch is active. | Refactor to avoid unions in async contexts. | v1 – no union tracking |
 
-### 11.2 Import System Limitations
+### Import System Limitations
 
 Strato's import resolver handles standard Python import forms but does not support dynamic or runtime-modified imports.
 
@@ -30,7 +30,7 @@ Strato's import resolver handles standard Python import forms but does not suppo
 | **Namespace packages (PEP 420)** | Basic support within configured source roots only. External namespace packages not supported. | Add `__init__.py` to all package directories. | v1 – partial |
 | **Circular imports** | Symbols registered before bodies walked, but runtime `ImportError` not detected. | Refactor to eliminate circular imports. | v1 – no runtime validation |
 
-### 11.3 Call Graph Limitations
+### Call Graph Limitations
 
 Strato builds a **static call graph** by analyzing function bodies. It cannot resolve calls that depend on runtime state or higher-order function patterns.
 
@@ -45,19 +45,19 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 | **`getattr()` / `setattr()`** | Dynamic attribute access unresolvable. | Use explicit attribute access. | v1 – unresolvable |
 | **`functools.partial`** | Partial application not tracked. | Annotate partial-wrapped functions. | v1 – unresolvable |
 
-### 11.4 Scope Limitations
+### Scope Limitations
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
-| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Decision 2.16](./02-design-overview.md#216-async-scope-boundary-asyncio-only)) |
+| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Async Library Support](./design-overview.md#async-scope-boundary-asyncio-only)) |
 | **No runtime analysis** | Cannot detect blocking calls conditionally skipped at runtime. | Use runtime profiling tools to complement. | v1 – static only |
 | **No inter-process analysis** | Blocking calls in subprocesses invisible. | Subprocess code is isolated from event loop. | v1 – out of scope |
 | **Single-project only** | Does not traverse into installed third-party packages. | Extend blocking database via config. | v1 – first-party focus |
 | **No cross-package analysis** | Monorepo packages analyzed separately. | Run Strato on each package independently. | v1 – single-project only |
 
-### 11.5 "Skip Silently" Behavior
+### "Skip Silently" Behavior
 
-Strato follows a **high-precision policy** ([Decision 2.2](./02-design-overview.md#22-precision-policy-unknown--not-blocking)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
+Strato follows a **high-precision policy** ([Precision Policy](./design-overview.md#precision-policy-unknown--not-blocking)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
 
 | Case | Behavior | Rationale |
 |------|----------|-----------|
@@ -75,7 +75,7 @@ Strato follows a **high-precision policy** ([Decision 2.2](./02-design-overview.
 
 **User guidance:** If Strato misses a blocking call, users can: (1) add type hints to improve resolution, (2) use `@blocking` to manually annotate, (3) refactor dynamic patterns to explicit calls.
 
-### 11.6 Future Work (v2+)
+### Future Work (v2+)
 
 | Feature | Description | Priority | Complexity |
 |---------|-------------|----------|------------|

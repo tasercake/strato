@@ -1,8 +1,8 @@
-# 5. Call Graph & Type Resolution
+# Call Graph & Type Resolution
 
-> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Type resolution uses Astral's `ty` crate for full inference; an earlier hand-rolled `ScopeBindings` approach was dropped because it failed on aliased imports, return-type inference, and attribute resolution. See [Decision 2.4](./02-design-overview.md#24-type-inference-strategy-ty-integration-vs-hand-rolled) for the full tradeoff analysis.
+> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Type resolution uses Astral's `ty` crate for full inference; an earlier hand-rolled `ScopeBindings` approach was dropped because it failed on aliased imports, return-type inference, and attribute resolution. See [Type Inference](./design-overview.md#type-inference-strategy-ty-integration-vs-hand-rolled) for the full tradeoff analysis.
 
-### 5.1 Graph Data Model
+### Graph Data Model
 
 #### Nodes
 
@@ -72,7 +72,7 @@ struct CallEdge {
 }
 ```
 
-### 5.2 Call Edge Visitor
+### Call Edge Visitor
 
 Call graph construction happens in two phases:
 
@@ -172,7 +172,7 @@ Determining the target of a call requires resolving the callee expression:
 
 **Key principle:** When callee resolution fails, skip the edge rather than guessing. This maintains high precision at the cost of some recall.
 
-### 5.3 Type Resolution via `ty`
+### Type Resolution via `ty`
 
 #### Type resolution: `ty` (not hand-rolled `ScopeBindings`)
 
@@ -244,11 +244,11 @@ Result: No edge created for `x.method()` call. This is **by design** – we pref
 
 If `ty` initialization fails (e.g., due to malformed AST or internal error), Strato falls back to `NullTypeResolver`, which always returns `None`. This degrades analysis to name-based resolution only (no attribute or method resolution).
 
-### 5.4 External Symbol Modeling (Phantom Nodes)
+### External Symbol Modeling (Phantom Nodes)
 
 External symbols (from third-party libraries or stdlib) are not parsed by Strato. However, they must be represented in the call graph if they are blocking.
 
-> **Decision recap:** See [Decision 2.5](./02-design-overview.md#25-phantom-nodes-for-external-symbols) for why we model externals as phantom nodes rather than parsing third-party source.
+> **Decision recap:** See [Phantom Nodes](./design-overview.md#phantom-nodes-for-external-symbols) for why we model externals as phantom nodes rather than parsing third-party source.
 
 #### Phantom Node Creation
 
@@ -298,7 +298,7 @@ def foo():
 
 This is **by design**: Strato only tracks blocking behavior for known-blocking functions. Unknown externals are assumed non-blocking (optimistic assumption).
 
-### 5.5 Properties & Dunder Methods
+### Properties & Dunder Methods
 
 #### Property Detection
 
@@ -386,7 +386,7 @@ with obj:
 3. Lookup `__enter__` and `__exit__` in type's MRO
 4. Create two `ImplicitDunder` edges: one to `__enter__`, one to `__exit__`
 
-### 5.6 Qualified Name Conventions
+### Qualified Name Conventions
 
 Qualified names uniquely identify callables across the codebase. Strato uses a consistent naming convention:
 

@@ -1,10 +1,10 @@
-# 10. Supporting Systems
+# Supporting Systems
 
-> **Decision recap:** [Decision 2.13](./02-design-overview.md#213-caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Decision 2.11](./02-design-overview.md#211-distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
+> **Decision recap:** [Caching Strategy](./design-overview.md#caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Distribution](./design-overview.md#distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
 
 [tooling]
 
-### 10.1 CLI Interface
+### CLI Interface
 
 The `strato` command provides a single primary subcommand for analysis:
 
@@ -91,7 +91,7 @@ strato check src/ --no-cache
 strato check src/ --stats
 ```
 
-### 10.2 Configuration Loading
+### Configuration Loading
 
 Strato loads configuration from `pyproject.toml` under the `[tool.strato]` section. Configuration precedence:
 
@@ -116,7 +116,7 @@ Strato validates the config at startup and exits with code 2 on error:
 
 For the complete configuration schema with all available options, see [Appendix D: Configuration Schema](./appendix-d-configuration-schema.md#appendix-d-configuration-schema).
 
-### 10.3 Caching Strategy
+### Caching Strategy
 
 Strato implements file-level caching to accelerate incremental analysis. The cache stores per-file parse results and symbol extraction, keyed by SHA-256 content hash.
 
@@ -181,7 +181,7 @@ Always recompute (not cached):
   - Diagnostics (generated from propagated graph)
 ```
 
-### 10.4 Performance Targets
+### Performance Targets
 
 | Scenario | Target | Rationale |
 |----------|--------|-----------|
@@ -208,7 +208,7 @@ Ruff-level performance (200ms for 630 files) is difficult for **fresh** runs bec
 
 However, **cached runs** approach ruff-level speed because: no parsing, no AST walking, graph rebuild from cached edges is fast, propagation is a single linear pass.
 
-### 10.5 Distribution & Packaging
+### Distribution & Packaging
 
 Strato is distributed as **two separate PyPI packages** to maintain zero binary footprint in production.
 

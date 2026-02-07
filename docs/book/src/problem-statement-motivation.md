@@ -1,6 +1,6 @@
-# 1. Problem Statement & Motivation
+# Problem Statement & Motivation
 
-### 1.1 The Core Problem
+### The Core Problem
 
 Blocking function calls inside Python async contexts silently destroy concurrency. When an `async def` function calls a blocking operation – such as `time.sleep()`, `requests.get()`, or any synchronous I/O – the entire event loop freezes. No other coroutines can execute until the blocking call completes. The application appears to work correctly in isolation but fails catastrophically under load.
 
@@ -11,7 +11,7 @@ This is an insidious class of bug because:
 3. **Production failures are mysterious.** Under concurrent load, the application becomes unresponsive, timeouts cascade, and the root cause is non-obvious.
 4. **The bug propagates transitively.** A blocking call buried five levels deep in the call stack poisons every async caller above it.
 
-### 1.2 Why Existing Tools Fail
+### Why Existing Tools Fail
 
 Current linters detect only **direct** blocking calls. They cannot trace blocking behavior through call chains.
 
@@ -32,7 +32,7 @@ def baz():
 
 The result: developers must manually audit every function in the call chain to determine if it eventually blocks. This is infeasible in large codebases.
 
-### 1.3 Detection Case Matrix
+### Detection Case Matrix
 
 | Case | Description | Expected Result | Difficulty |
 |------|-------------|-----------------|------------|
@@ -47,7 +47,7 @@ The result: developers must manually audit every function in the call chain to d
 | Cross-file blocking | `from utils import slow_util; async def handler(): slow_util()` | STRATO002 diagnostic | Hard (requires project-wide analysis) |
 | Deep transitive chain | `handler() -> level_1() -> level_2() -> level_3() -> time.sleep()` | STRATO002 diagnostic with chain_length=5 | Very hard (requires deep graph traversal) |
 
-### 1.4 Tool Comparison
+### Tool Comparison
 
 | Tool | Direct Blocking | Indirect Blocking | Properties | Dunders | Cross-File | Deep Chains | Executor Detection |
 |------|----------------|-------------------|------------|---------|------------|-------------|-------------------|
@@ -56,9 +56,9 @@ The result: developers must manually audit every function in the call chain to d
 | PyCG | N/A (call graph only) | N/A | N/A | N/A | ✓ | ✓ | N/A |
 | **Strato** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-### 1.5 Motivating Examples
+### Motivating Examples
 
-#### 1.5.1 Indirect Blocking (README Example)
+#### Indirect Blocking (README Example)
 
 ```python
 import time
@@ -82,7 +82,7 @@ STRATO002: Async function 'handler' calls blocking function 'baz'
    = note: call chain: handler -> baz -> time.sleep (length: 3)
 ```
 
-#### 1.5.2 Blocking Property
+#### Blocking Property
 
 ```python
 import requests
@@ -111,7 +111,7 @@ STRATO003: Async function 'process' accesses blocking property 'DataFetcher.data
    = note: property getter calls requests.get (blocking)
 ```
 
-#### 1.5.3 Blocking Dunder Method
+#### Blocking Dunder Method
 
 ```python
 import requests
@@ -138,7 +138,7 @@ STRATO004: Async function 'log_status' calls blocking dunder method 'RemoteObjec
    = note: __str__ method calls requests.get (blocking)
 ```
 
-#### 1.5.4 Cross-File Blocking
+#### Cross-File Blocking
 
 **utils.py:**
 
@@ -171,7 +171,7 @@ STRATO002: Async function 'handler' calls blocking function 'slow_util'
    = note: slow_util defined in utils.py:3
 ```
 
-#### 1.5.5 Deep Transitive Chain
+#### Deep Transitive Chain
 
 ```python
 import time

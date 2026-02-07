@@ -1,4 +1,4 @@
-# 3. Architecture Overview
+# Architecture Overview
 
 ### System Diagram
 
@@ -99,13 +99,13 @@ strato (Python package)
 
 | Structure | Purpose | Defined In |
 |-----------|---------|------------|
-| `ModuleMap` | Maps module paths to file paths | [Section 4.3](./04-analysis-pipeline.md#43-phase-3-resolve-module-resolution) |
-| `SymbolTable` | Maps qualified names to definitions | [Section 4.3](./04-analysis-pipeline.md#43-phase-3-resolve-module-resolution) |
-| `CallGraph` | Directed graph of function call relationships | [Section 5.1](./05-call-graph-type-resolution.md#51-graph-data-model) |
-| `BlockingDatabase` | Registry of known blocking functions | [Section 7.1](./07-blocking-function-database-annotations.md#71-database-structure) |
-| `EscapeHatchRegistry` | Patterns recognized as safe executor wrapping | [Section 8.3](./08-escape-hatches-executor-wrappers.md#83-generalized-wrapper-registry) |
-| `Diagnostic` | Reported issue with location, chain, and help text | [Section 9.1](./09-error-reporting-diagnostics.md#91-error-codes) |
-| `AnalysisCache` | Serialized per-file results for incremental analysis | [Section 10.3](./10-supporting-systems.md#103-caching-strategy) |
+| `ModuleMap` | Maps module paths to file paths | [Phase 3: Resolve](./analysis-pipeline.md#phase-3-resolve-module-resolution) |
+| `SymbolTable` | Maps qualified names to definitions | [Phase 3: Resolve](./analysis-pipeline.md#phase-3-resolve-module-resolution) |
+| `CallGraph` | Directed graph of function call relationships | [Graph Data Model](./call-graph-type-resolution.md#graph-data-model) |
+| `BlockingDatabase` | Registry of known blocking functions | [Database Structure](./blocking-function-database-annotations.md#database-structure) |
+| `EscapeHatchRegistry` | Patterns recognized as safe executor wrapping | [Generalized Wrapper Registry](./escape-hatches-executor-wrappers.md#generalized-wrapper-registry) |
+| `Diagnostic` | Reported issue with location, chain, and help text | [Error Codes](./error-reporting-diagnostics.md#error-codes) |
+| `AnalysisCache` | Serialized per-file results for incremental analysis | [Caching Strategy](./supporting-systems.md#caching-strategy) |
 
 ### Public API Contract (`strato_core`)
 

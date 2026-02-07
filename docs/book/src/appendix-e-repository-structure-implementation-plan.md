@@ -1,6 +1,6 @@
 # Appendix E: Repository Structure & Implementation Plan
 
-### E.1 Repository Layout
+### Repository Layout
 
 ```
 strato/                              # Monorepo root
@@ -100,7 +100,7 @@ strato/                              # Monorepo root
         └── STRATO004.md
 ```
 
-### E.2 Cargo Workspace
+### Cargo Workspace
 
 **Workspace Members:**
 
@@ -125,7 +125,7 @@ strato/                              # Monorepo root
 | `sha2` | `0.10` | File content hashing |
 | `miette` | `7` (fancy) | Beautiful error output |
 
-### E.3 Implementation Milestones
+### Implementation Milestones
 
 | Milestone | Name | Key Deliverable | Effort |
 |-----------|------|-----------------|--------|
@@ -146,7 +146,7 @@ strato/                              # Monorepo root
 
 **Critical Path:** M-1 -> M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6 -> M7 -> M8 -> M9 -> M10 -> M11 -> M12 (strictly sequential)
 
-### E.4 Build & Test
+### Build & Test
 
 ```bash
 # Build all crates

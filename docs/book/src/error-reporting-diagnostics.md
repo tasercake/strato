@@ -1,10 +1,10 @@
-# 9. Error Reporting & Diagnostics
+# Error Reporting & Diagnostics
 
-> **Decision recap:** [Decision 2.7](./02-design-overview.md#27-intervention-strategy-for-error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Decision 2.14](./02-design-overview.md#214-determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
+> **Decision recap:** [Error Reporting](./design-overview.md#intervention-strategy-for-error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Determinism Contract](./design-overview.md#determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
 
 [async] [tooling]
 
-### 9.1 Error Codes
+### Error Codes
 
 Strato emits four error codes, each corresponding to a distinct pattern of blocking call reachability from async contexts:
 
@@ -85,7 +85,7 @@ This note is appended to the diagnostic message when:
 2. Type inference (`ty`) could not resolve the alias chain
 3. The call was not marked `in_executor` due to resolution failure
 
-### 9.2 Error Code Classification Algorithm
+### Error Code Classification Algorithm
 
 The error code is determined by inspecting the `BlockingReason.chain_links` and the edge kind of the last link in the chain:
 
@@ -138,7 +138,7 @@ fn classify_error_code(chain: &BlockingReason, graph: &CallGraph) -> ErrorCode {
 - The last link's callee is always a `KnownBlocking` node (the blocking root cause)
 - Edge kind is checked only for the **last link** (the edge leading to the blocking root)
 
-### 9.3 Intervention Point Strategy
+### Intervention Point Strategy
 
 The "intervention point" is the primary location shown in the diagnostic – the place in the user's code where they should make a change. Strato supports two strategies for selecting this location:
 
@@ -235,7 +235,7 @@ STRATO002: Blocking call reachable from async context
 
 When the `first-party-deepest` strategy finds **multiple first-party functions at the same depth**, select the one with the lexicographically smallest `qualified_name`. If still tied (same function called from multiple sites), select the call site with the smallest `(line, column)` pair.
 
-### 9.4 Diagnostic Structure
+### Diagnostic Structure
 
 The `Diagnostic` struct is the core data structure for error reporting. It contains all information needed to render a diagnostic in any output format (text, JSON, SARIF).
 
@@ -319,7 +319,7 @@ Ruff AST nodes provide `TextRange` (byte-offset range from the start of the sour
 | JSON output | 0-based (matches internal, LSP convention) |
 | SARIF output | 1-based column (SARIF spec requires 1-based) |
 
-### 9.5 Related Locations
+### Related Locations
 
 Related locations provide additional context for diagnostics. They are attached based on the error code and call chain structure.
 
@@ -375,7 +375,7 @@ note: sync function `process` defined here
 note: blocking function `time.sleep` is a known blocking stdlib function
 ```
 
-### 9.6 Deterministic Output Rules
+### Deterministic Output Rules
 
 For test stability and reproducible CI runs, all outputs must be deterministic.
 
@@ -424,7 +424,7 @@ type BlockingDatabase = BTreeMap<String, BlockingEntry>;
 
 **Enforcement:** All diagnostic lists sorted before output; all maps use `BTreeMap`; all tie-breaking rules explicitly specified; integration tests include golden output comparison.
 
-### 9.7 Output Formats
+### Output Formats
 
 Strato supports three output formats:
 
