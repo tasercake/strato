@@ -534,6 +534,85 @@
         })();
         </script>
 
+        <script>
+        (function() {
+            var defined_min = 180;
+            var defined_max = 500;
+
+            var defined_sidebar = parseInt(
+                getComputedStyle(document.documentElement)
+                    .getPropertyValue('--sidebar-width'), 10
+            ) || 280;
+
+            var html = document.documentElement;
+            var sidebarEl = document.getElementById('mdbook-sidebar');
+            var handle = document.getElementById('mdbook-sidebar-resize-handle');
+
+            if (!sidebarEl || !handle) return;
+
+            // Restore persisted width
+            try {
+                var stored = parseInt(localStorage.getItem('mdbook-sidebar-width'), 10);
+                if (stored && stored >= defined_min && stored <= defined_max) {
+                    sidebarEl.style.width = stored + 'px';
+                    document.documentElement.style.setProperty('--sidebar-target-width', stored + 'px');
+                }
+            } catch (e) {}
+
+            var startX, startWidth, isRtl;
+
+            handle.addEventListener('mousedown', initDrag, false);
+            handle.addEventListener('touchstart', initDrag, { passive: false });
+
+            function initDrag(e) {
+                e.preventDefault();
+                isRtl = document.dir === 'rtl' || html.getAttribute('dir') === 'rtl';
+                startX = (e.touches ? e.touches[0] : e).clientX;
+                startWidth = sidebarEl.getBoundingClientRect().width;
+
+                html.classList.add('sidebar-resizing');
+
+                document.addEventListener('mousemove', doDrag, false);
+                document.addEventListener('mouseup', stopDrag, false);
+                document.addEventListener('touchmove', doDrag, { passive: false });
+                document.addEventListener('touchend', stopDrag, false);
+            }
+
+            function doDrag(e) {
+                e.preventDefault();
+                var clientX = (e.touches ? e.touches[0] : e).clientX;
+                var diff = clientX - startX;
+                var newWidth = isRtl ? startWidth - diff : startWidth + diff;
+                newWidth = Math.min(defined_max, Math.max(defined_min, newWidth));
+
+                sidebarEl.style.width = newWidth + 'px';
+                document.documentElement.style.setProperty('--sidebar-target-width', newWidth + 'px');
+            }
+
+            function stopDrag() {
+                html.classList.remove('sidebar-resizing');
+
+                document.removeEventListener('mousemove', doDrag, false);
+                document.removeEventListener('mouseup', stopDrag, false);
+                document.removeEventListener('touchmove', doDrag);
+                document.removeEventListener('touchend', stopDrag);
+
+                // Persist
+                var finalWidth = sidebarEl.getBoundingClientRect().width;
+                try {
+                    localStorage.setItem('mdbook-sidebar-width', Math.round(finalWidth));
+                } catch (e) {}
+            }
+
+            // Double-click resets to default
+            handle.addEventListener('dblclick', function() {
+                sidebarEl.style.width = '';
+                document.documentElement.style.setProperty('--sidebar-target-width', defined_sidebar + 'px');
+                try { localStorage.removeItem('mdbook-sidebar-width'); } catch (e) {}
+            });
+        })();
+        </script>
+
         {{#if is_print}}
         {{#if mathjax_support}}
         <script>

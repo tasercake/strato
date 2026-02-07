@@ -394,31 +394,32 @@ ul#searchresults span.teaser em {
 .sidebar .sidebar-resize-handle {
   position: absolute;
   cursor: col-resize;
-  width: var(--sidebar-resize-indicator-width);
-  right: calc(var(--sidebar-resize-indicator-width) * -1);
+  width: 12px;
+  right: -6px;
   top: 0;
   bottom: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
+  z-index: 10;
 }
 
 .sidebar-resize-handle .sidebar-resize-indicator {
-  width: 100%;
-  height: 12px;
+  width: 4px;
+  height: 24px;
+  border-radius: 2px;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.sidebar .sidebar-resize-handle:hover .sidebar-resize-indicator,
+.sidebar-resizing .sidebar .sidebar-resize-handle .sidebar-resize-indicator {
   background-color: var(--icons);
-  margin-inline-start: var(--sidebar-resize-indicator-space);
 }
 
 [dir="rtl"] .sidebar .sidebar-resize-handle {
-  left: calc(var(--sidebar-resize-indicator-width) * -1);
+  left: -6px;
   right: unset;
-}
-.js .sidebar .sidebar-resize-handle {
-  cursor: col-resize;
-  width: calc(
-    var(--sidebar-resize-indicator-width) -
-      var(--sidebar-resize-indicator-space)
-  );
 }
 .sidebar::-webkit-scrollbar {
   background: var(--sidebar-bg);
