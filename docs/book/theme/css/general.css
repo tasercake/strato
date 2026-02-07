@@ -3,6 +3,10 @@
   color-scheme: var(--color-scheme);
 }
 
+summary {
+  cursor: pointer;
+}
+
 html {
   font-family: var(--font);
   color: var(--fg);
