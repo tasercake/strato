@@ -75,7 +75,7 @@ a > .hljs {
   opacity: 0.8;
 }
 
-/* Hide the fixed side nav arrows — we use footer buttons instead (Zed style) */
+/* Hide the fixed side nav arrows – we use footer buttons instead (Zed style) */
 .nav-wide-wrapper {
   display: none !important;
 }
