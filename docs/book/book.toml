@@ -1,0 +1,37 @@
+[book]
+title = "Strato"
+authors = ["Krishna Penukonda <krishna@penukonda.me>"]
+description = "A Rust-based static analysis tool that detects blocking function calls inside Python async contexts"
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "dark"
+smart-punctuation = true
+git-repository-url = "https://github.com/tasercake/strato"
+no-section-label = true
+additional-css = ["theme/page-toc.css", "theme/highlight.css"]
+additional-js = ["theme/page-toc.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+heading-split-level = 2
+copy-js = true
+
+[output.html.print]
+enable = true
+page-break = true
+
+[output.html.fold]
+enable = true
+level = 0

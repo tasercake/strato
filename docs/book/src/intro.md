@@ -1,0 +1,52 @@
+# Strato: Async Blocking Call Detector for Python
+
+> **Status**: Draft – Seeking feedback & expert review
+
+**Strato** is a static analysis tool that detects blocking function calls inside Python async contexts. Unlike existing linters (flake8-async, ruff ASYNC2XX) which only catch **direct** blocking calls, Strato performs **full transitive call-graph analysis** – tracing through intermediary sync functions to find hidden blocking calls that would stall the event loop.
+
+### What's Different
+
+Existing tools don't catch this:
+
+```python
+def sync_helper():
+    time.sleep(1)          # Blocking call hidden here
+
+async def handler():
+    sync_helper()          # Strato catches this via call-graph analysis
+```
+
+Strato builds a project-wide call graph, propagates "blocking" status through function call chains using SCC-based linear-time analysis, and reports when blocking code is reachable from async contexts – with configurable error reporting that shows diagnostics in the user's own code, not deep in third-party libraries.
+
+### Design Choices
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Analysis approach | Full transitive call graph | Required to catch indirect blocking |
+| Precision policy | High precision (Unknown = skip) | High trust, low false positive rate for proven-blocking diagnostics |
+| Semantic substrate | Astral's `ty` crate | Module/name/type semantics for resolving calls, methods, properties, and dunders |
+| Error reporting | Configurable intervention point | Default: deepest first-party function (most actionable) |
+| Blocking database | Curated 60 entries + user-extensible | High signal, low noise; extensible via config and `@blocking` decorator |
+| Executor wrappers | Generalized registry | Built-in + config + `@unblocker` decorator for custom wrappers |
+
+### v1 Scope Boundaries
+
+**In scope:** asyncio blocking detection, transitive call graph, SCC propagation, property/dunder detection, executor wrapper recognition, 60 built-in blocking functions, text/JSON/SARIF output, incremental caching of Strato-owned parse/extraction artifacts.
+
+**Out of scope:** trio/curio/anyio, dynamic imports, runtime analysis, cross-package analysis, auto-fix, IDE integration. See [Known Limitations & Scope Boundaries](./known-limitations-scope-boundaries.md#known-limitations--scope-boundaries) for the full limitations matrix.
+
+### Error Codes
+
+| Code | What it catches |
+|------|----------------|
+| STRATO001 | Direct blocking call in async function |
+| STRATO002 | Indirect blocking via sync intermediary |
+| STRATO003 | Blocking `@property` accessed in async context |
+| STRATO004 | Blocking dunder method invoked in async context |
+
+### Performance Targets
+
+| Scenario | Target |
+|----------|--------|
+| Fresh analysis (500 files) | < 5 seconds |
+| Cached analysis (no changes) | < 500 milliseconds |
