@@ -87,29 +87,22 @@ This note is appended to the diagnostic message when:
 
 ### Error Code Classification Algorithm
 
-The error code is determined by inspecting the `BlockingReason.chain_links` and the edge kind of the last link in the chain:
+The error code is determined by inspecting the semantic edge kinds along `BlockingReason.chain_links`, from the async context toward the blocking root. Property and dunder classifications are based on the **first special semantic edge on the selected path**, not on the final edge into the blocking root.
 
 ```rust
 fn classify_error_code(chain: &BlockingReason, graph: &CallGraph) -> ErrorCode {
     // The first link is always from the async function.
-    // The last link's callee is the blocking root cause.
     let first_link = &chain.chain_links[0];
-    let last_link = chain.chain_links.last().unwrap();
 
-    // Check the edge kind of the last link to the blocking root
-    let last_edge_kind = graph.edge_kind(
-        &last_link.function_name,
-        &last_link.callee_name
-    );
-
-    // STRATO003: Property access to a blocking getter
-    if last_edge_kind == EdgeKind::PropertyAccess {
-        return ErrorCode::STRATO003;
-    }
-
-    // STRATO004: Implicit dunder call that blocks
-    if last_edge_kind == EdgeKind::ImplicitDunder {
-        return ErrorCode::STRATO004;
+    // STRATO003/004 are semantic-edge classifications. The first property or
+    // implicit-dunder edge explains how blocking behavior entered the async path,
+    // even if the eventual blocking root is reached by ordinary direct calls.
+    for link in &chain.chain_links {
+        match link.edge_kind {
+            EdgeKind::PropertyAccess => return ErrorCode::STRATO003,
+            EdgeKind::ImplicitDunder => return ErrorCode::STRATO004,
+            _ => {}
+        }
     }
 
     // STRATO001 vs STRATO002: Is the blocking call directly in an async function?
@@ -126,17 +119,20 @@ fn classify_error_code(chain: &BlockingReason, graph: &CallGraph) -> ErrorCode {
 
 **Classification Examples:**
 
-| Scenario | Chain | Edge Kind | Result |
-|----------|-------|-----------|--------|
-| `async handler() -> time.sleep()` | 1 link, caller is async | `DirectCall` | **STRATO001** |
-| `async handler() -> helper() -> time.sleep()` | 2 links | `DirectCall` | **STRATO002** |
-| `async handler() -> loader.data [PropertyAccess] -> requests.get()` | 2+ links | `PropertyAccess` (last edge) | **STRATO003** |
-| `async handler() -> str(obj) [ImplicitDunder] -> __str__() -> requests.get()` | 2+ links | `ImplicitDunder` (last edge) | **STRATO004** |
+| Scenario | Chain | First Special Semantic Edge | Result |
+|----------|-------|-----------------------------|--------|
+| `async handler() -> time.sleep()` | 1 link, caller is async | None | **STRATO001** |
+| `async handler() -> helper() -> time.sleep()` | 2 links | None | **STRATO002** |
+| `async handler() -> loader.data [PropertyAccess] -> requests.get()` | 2+ links | `PropertyAccess` | **STRATO003** |
+| `async handler() -> helper() -> loader.data [PropertyAccess] -> requests.get()` | 3+ links | `PropertyAccess` | **STRATO003** |
+| `async handler() -> str(obj) [ImplicitDunder] -> __str__() -> requests.get()` | 2+ links | `ImplicitDunder` | **STRATO004** |
+| `async handler() -> helper() -> str(obj) [ImplicitDunder] -> __str__() -> requests.get()` | 3+ links | `ImplicitDunder` | **STRATO004** |
 
 **Key invariants:**
 - The first link's `is_async` field is always `true` (the chain starts from an async function)
-- The last link's callee is always a `KnownBlocking` node (the blocking root cause)
-- Edge kind is checked only for the **last link** (the edge leading to the blocking root)
+- The path ends at a `KnownBlocking` node (the blocking root cause)
+- Property and dunder edge kinds are checked across the whole path; the first special semantic edge wins
+- `STRATO001` and `STRATO002` are used only when no property or dunder edge appears on the path
 
 ### Intervention Point Strategy
 
@@ -276,11 +272,11 @@ struct Location {
     file: String,
     /// Start line (1-based)
     line: usize,
-    /// Start column (0-based, UTF-8 byte offset within line)
+    /// Start column (1-based, human-facing column number)
     column: usize,
     /// End line (1-based)
     end_line: usize,
-    /// End column (0-based, UTF-8 byte offset)
+    /// End column (1-based, human-facing column number)
     end_column: usize,
 }
 
@@ -314,9 +310,10 @@ Ruff AST nodes provide `TextRange` (byte-offset range from the start of the sour
 
 | Context | Convention |
 |---------|-----------|
-| Internal (`Location` struct) | 0-based byte offset (matches ruff) |
-| Text output display | 1-based column (add 1 when formatting) |
-| JSON output | 0-based (matches internal, LSP convention) |
+| Internal Ruff spans | 0-based byte offsets (from `TextRange`) |
+| Internal `Location` struct | 1-based line / 1-based column after conversion |
+| Text output display | 1-based column |
+| JSON output | 1-based column |
 | SARIF output | 1-based column (SARIF spec requires 1-based) |
 
 ### Related Locations

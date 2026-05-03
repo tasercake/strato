@@ -40,6 +40,8 @@ Key-value pairs where the key is the qualified wrapper name and the value specif
 - **Integer**: Positional parameter index (0-based)
 - **String**: Keyword argument name
 
+Wrapper names are TOML keys, so each qualified wrapper name can appear at most once. Duplicate keys are invalid TOML and are rejected by the TOML parser before Strato-specific validation runs.
+
 **Precedence**: `@unblocker` annotation > config entry.
 
 ### Validation Rules

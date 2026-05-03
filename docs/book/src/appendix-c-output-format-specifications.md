@@ -4,6 +4,8 @@
 
 The text format is the default human-readable output, providing compiler-style diagnostics with source context.
 
+All emitted source coordinates use 1-indexed lines and 1-indexed columns. Columns are character positions in the decoded source line, not byte offsets.
+
 **Format Specification:**
 
 ```
@@ -38,6 +40,8 @@ Found 1 blocking issue in 1 file (2 functions analyzed)
 
 Machine-readable structured output for programmatic consumption and CI integration.
 
+The diagnostic location field is `primary_location`. JSON output uses the same source coordinate convention as text output: 1-indexed lines and 1-indexed columns, with end positions optional and exclusive of the highlighted span's final character.
+
 **Schema Definition:**
 
 ```json
@@ -58,8 +62,8 @@ Machine-readable structured output for programmatic consumption and CI integrati
       "related_locations": [
         {
           "file": "string",
-          "line": "integer",
-          "column": "integer",
+          "line": "integer (1-indexed)",
+          "column": "integer (1-indexed)",
           "message": "string"
         }
       ],
@@ -165,11 +169,13 @@ Machine-readable structured output for programmatic consumption and CI integrati
 }
 ```
 
-**Ordering:** `diagnostics` sorted by file path, line, column. `chain` ordered from async entry to blocking call. Phantom node locations serialize as `null`.
+**Ordering:** `diagnostics` sorted by `primary_location.file`, `primary_location.line`, `primary_location.column`, then `code`. `chain` ordered from async entry to blocking call. Phantom node locations serialize as `null`.
 
 ### SARIF v2.1.0 Format
 
 Compatible with GitHub Code Scanning, Azure DevOps, and CI/CD platforms supporting SARIF v2.1.0.
+
+SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`, and `endColumn` fields, preserving the same coordinates as Strato JSON output.
 
 **Mapping to SARIF:**
 
@@ -262,7 +268,7 @@ Compatible with GitHub Code Scanning, Azure DevOps, and CI/CD platforms supporti
                 {
                   "locations": [
                     {
-                      "location": {
+                      "physicalLocation": {
                         "message": { "text": "async function handler()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },
@@ -271,7 +277,7 @@ Compatible with GitHub Code Scanning, Azure DevOps, and CI/CD platforms supporti
                       }
                     },
                     {
-                      "location": {
+                      "physicalLocation": {
                         "message": { "text": "calls helper()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },
@@ -280,7 +286,7 @@ Compatible with GitHub Code Scanning, Azure DevOps, and CI/CD platforms supporti
                       }
                     },
                     {
-                      "location": {
+                      "physicalLocation": {
                         "message": { "text": "calls blocking time.sleep()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },

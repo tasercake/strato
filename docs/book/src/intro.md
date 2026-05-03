@@ -23,15 +23,15 @@ Strato builds a project-wide call graph, propagates "blocking" status through fu
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Analysis approach | Full transitive call graph | Required to catch indirect blocking |
-| Precision policy | High precision (Unknown = skip) | Zero false positives – users trust every diagnostic |
-| Type inference engine | Astral's `ty` crate | Full alias tracking, return types, MRO – critical for method/property resolution |
+| Precision policy | High precision (Unknown = skip) | High trust, low false positive rate for proven-blocking diagnostics |
+| Semantic substrate | Astral's `ty` crate | Module/name/type semantics for resolving calls, methods, properties, and dunders |
 | Error reporting | Configurable intervention point | Default: deepest first-party function (most actionable) |
-| Blocking database | Curated ~80 entries + user-extensible | High signal, low noise; extensible via config and `@blocking` decorator |
+| Blocking database | Curated 60 entries + user-extensible | High signal, low noise; extensible via config and `@blocking` decorator |
 | Executor wrappers | Generalized registry | Built-in + config + `@unblocker` decorator for custom wrappers |
 
 ### v1 Scope Boundaries
 
-**In scope:** asyncio blocking detection, transitive call graph, SCC propagation, property/dunder detection, executor wrapper recognition, 80+ built-in blocking functions, text/JSON/SARIF output, incremental caching.
+**In scope:** asyncio blocking detection, transitive call graph, SCC propagation, property/dunder detection, executor wrapper recognition, 60 built-in blocking functions, text/JSON/SARIF output, incremental caching of Strato-owned parse/extraction artifacts.
 
 **Out of scope:** trio/curio/anyio, dynamic imports, runtime analysis, cross-package analysis, auto-fix, IDE integration. See [Known Limitations & Scope Boundaries](./known-limitations-scope-boundaries.md#known-limitations--scope-boundaries) for the full limitations matrix.
 

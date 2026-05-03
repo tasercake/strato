@@ -40,30 +40,18 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
   // Step 4: Propagate in topological order (leaves first)
   FOR each scc_node in topo_order (bottom-up):
 
-    // Step 4a: Check if entire SCC is shielded by @non_blocking
-    // NON_BLOCKING RULE (SCC level):
-    // If ANY function in the SCC is KnownNonBlocking, the entire SCC is treated
-    // as non-blocking. Rationale: @non_blocking is a user assertion that this
-    // code is safe. Since SCC members are mutually recursive, one @non_blocking
-    // member shields the cycle.
-    scc_has_non_blocking = false
-    FOR each func in scc_node.functions:
-      IF func.blocking_status == KnownNonBlocking:
-        scc_has_non_blocking = true
-        BREAK
-
-    IF scc_has_non_blocking:
-      scc_node.is_blocking = false
-      CONTINUE  // Skip to next SCC – do not propagate blocking through this SCC
-
-    // Step 4b: Check if any function in this SCC is directly blocking
+    // Step 4a: Check if any function in this SCC is directly blocking
+    // NON_BLOCKING RULE (function level):
+    // KnownNonBlocking is a local assertion for the decorated function only. It
+    // prevents that function from being marked PropagatedBlocking, but it does
+    // not shield other members of the SCC and does not erase KnownBlocking facts.
     scc_is_blocking = false
     FOR each func in scc_node.functions:
       IF func.blocking_status == KnownBlocking:
         scc_is_blocking = true
         BREAK
 
-    // Step 4c: Check if any callee SCC (already processed) is blocking
+    // Step 4b: Check if any callee SCC (already processed) is blocking
     IF NOT scc_is_blocking:
       FOR each outgoing_edge in condensation.edges_from(scc_node):
         callee_scc = outgoing_edge.target
@@ -76,7 +64,7 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
           scc_is_blocking = true
           BREAK
 
-    // Step 4d: Mark all functions in this SCC
+    // Step 4c: Mark unannotated functions in this SCC
     IF scc_is_blocking:
       scc_node.is_blocking = true
       FOR each func in scc_node.functions:
@@ -86,6 +74,8 @@ FUNCTION propagate_blocking(graph: &mut CallGraph):
           // Record the propagation path for error reporting
           func.blocking_reason = trace_blocking_path(func, graph)
 ```
+
+`KnownNonBlocking` functions remain non-blocking even when they are in a blocking SCC. This preserves the user's explicit assertion for that function while still allowing blocking facts to propagate to unannotated SCC peers. For example, if `safe()` is annotated `@non_blocking`, mutually recursive with `unsafe()`, and `unsafe()` calls `time.sleep()`, Strato reports paths through `unsafe()` but not calls to `safe()`.
 
 ### Edge Aggregation Rules
 
@@ -151,6 +141,8 @@ struct ChainLink {
     call_site_location: Option<Location>,
     /// The callee's qualified name (what is being called at the call site).
     callee_name: QualifiedName,
+    /// The semantic edge kind for this call path step.
+    edge_kind: EdgeKind,
     /// Whether the calling function is async.
     is_async: bool,
     /// Whether the calling function is first-party.

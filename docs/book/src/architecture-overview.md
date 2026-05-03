@@ -25,13 +25,13 @@
                                    |
                                    v
                           +-------------------+
-                          |   3. RESOLVE       |
-                          | Map imports to     |
-                          | source files       |
-                          | Build symbol table |
+                          |   3. SEMANTICS     |
+                          | Initialize ty      |
+                          | semantic context   |
+                          | Extract facts      |
                           +--------+----------+
                                    |
-                     Cross-file symbol map
+                      Semantic facts + ASTs
                                    |
                                    v
                           +-------------------+
@@ -80,7 +80,7 @@ strato-cli (Rust binary)
 ├── strato_core          # Core analysis library
 │   ├── discovery        # File finder, config loader
 │   ├── parser           # Thin wrapper over ruff_python_parser
-│   ├── resolver         # Module resolver (import → file mapping)
+│   ├── semantics        # ty-backed module/name/type semantic layer
 │   ├── graph            # Call graph data structures
 │   ├── annotator        # Blocking function database + decorator detection
 │   ├── propagator       # SCC-based blocking propagation
@@ -99,8 +99,8 @@ strato (Python package)
 
 | Structure | Purpose | Defined In |
 |-----------|---------|------------|
-| `ModuleMap` | Maps module paths to file paths | [Phase 3: Resolve](./analysis-pipeline.md#phase-3-resolve-module-resolution) |
-| `SymbolTable` | Maps qualified names to definitions | [Phase 3: Resolve](./analysis-pipeline.md#phase-3-resolve-module-resolution) |
+| `SemanticContext` | ty-backed project semantic state for module, name, and type facts | [Phase 3: Semantics](./analysis-pipeline.md#phase-3-semantics-ty-semantic-context) |
+| `SemanticFactSet` | Stable facts Strato consumes from ty for graph construction | [Phase 3: Semantics](./analysis-pipeline.md#phase-3-semantics-ty-semantic-context) |
 | `CallGraph` | Directed graph of function call relationships | [Graph Data Model](./call-graph-type-resolution.md#graph-data-model) |
 | `BlockingDatabase` | Registry of known blocking functions | [Database Structure](./blocking-function-database-annotations.md#database-structure) |
 | `EscapeHatchRegistry` | Patterns recognized as safe executor wrapping | [Generalized Wrapper Registry](./escape-hatches-executor-wrappers.md#generalized-wrapper-registry) |

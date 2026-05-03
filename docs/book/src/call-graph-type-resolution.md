@@ -1,6 +1,6 @@
 # Call Graph & Type Resolution
 
-> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Type resolution uses Astral's `ty` crate for full inference; an earlier hand-rolled `ScopeBindings` approach was dropped because it failed on aliased imports, return-type inference, and attribute resolution. See [Type Inference](./design-overview.md#type-inference-strategy-ty-integration-vs-hand-rolled) for the full tradeoff analysis.
+> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Module, name, and type semantics come from Astral's `ty` crate; Strato consumes only normalized semantic facts and owns the blocking-specific graph, annotation, propagation, and reporting layers. See [Semantic Substrate](./design-overview.md#semantic-substrate) for the full tradeoff analysis.
 
 ### Graph Data Model
 
@@ -90,13 +90,12 @@ For each function, walk its AST and record call edges using `CallEdgeVisitor`.
 struct CallEdgeVisitor {
     current_function: NodeId,
     call_graph: &mut CallGraph,
-    symbol_table: &SymbolTable,
-    type_resolver: &dyn TypeResolver,
+    semantic_facts: &SemanticFactSet,
 }
 
 impl Visitor for CallEdgeVisitor {
     fn visit_expr_call(&mut self, call: &ExprCall) {
-        let callee = self.resolve_callee(&call.func);
+        let callee = self.semantic_facts.target_for_call(&call.func);
         if let Some(target_node) = callee {
             let in_executor = self.is_wrapped_in_executor(call);
             self.call_graph.add_edge(CallEdge {
@@ -117,8 +116,7 @@ impl Visitor for CallEdgeVisitor {
 
     fn visit_expr_attribute(&mut self, attr: &ExprAttribute) {
         // Check if this is a property access
-        let value_type = self.type_resolver.resolve_type(&attr.value);
-        if let Some(prop_node) = self.lookup_property(value_type, &attr.attr) {
+        if let Some(prop_node) = self.semantic_facts.property_getter_for(&attr) {
             self.call_graph.add_edge(CallEdge {
                 from: self.current_function,
                 to: prop_node,
@@ -139,8 +137,7 @@ impl Visitor for CallEdgeVisitor {
             Mult => "__mul__",
             // ... etc
         };
-        let left_type = self.type_resolver.resolve_type(&binop.left);
-        if let Some(dunder_node) = self.lookup_dunder(left_type, dunder) {
+        if let Some(dunder_node) = self.semantic_facts.dunder_for(&binop, dunder) {
             self.call_graph.add_edge(CallEdge {
                 from: self.current_function,
                 to: dunder_node,
@@ -158,78 +155,56 @@ impl Visitor for CallEdgeVisitor {
 }
 ```
 
+The names in this pseudocode represent Strato-owned lookups over normalized semantic facts. They are not ty API names.
+
 #### Callee Resolution
 
 Determining the target of a call requires resolving the callee expression:
 
 | Callee Expression | Resolution Strategy |
 |-------------------|---------------------|
-| `Name` (e.g., `foo()`) | Lookup in symbol table via scope chain |
-| `Attribute` (e.g., `obj.method()`) | Resolve `obj` type via type inference, then lookup `method` in type's MRO |
+| `Name` (e.g., `foo()`) | Ask the semantic layer for the resolved callable target |
+| `Attribute` (e.g., `obj.method()`) | Ask the semantic layer for the resolved attribute target |
 | `Subscript` (e.g., `funcs[0]()`) | Skip (requires runtime information) |
 | `Lambda` | Create anonymous node for lambda |
 | Unresolvable | Skip silently (no edge created) |
 
 **Key principle:** When callee resolution fails, skip the edge rather than guessing. This maintains high precision at the cost of some recall.
 
-### Type Resolution via `ty`
+### Semantic Resolution via `ty`
 
-#### Type resolution: `ty` (not hand-rolled `ScopeBindings`)
+Strato uses Astral's `ty` crate as the semantic substrate. There is no Strato-owned resolver API with invented methods, and no parallel local-binding fallback. The graph builder consumes normalized facts from the ty-backed semantic layer and converts them into Strato `NodeId`s or known external qualified names.
 
-Strato uses Astral's `ty` crate for type inference. A hand-rolled `ScopeBindings`-style approach (scope chain of variable bindings) was considered but is insufficient: it fails on aliased imports (`x = requests.get; x()`), return type inference (`factory().method()`), and attribute resolution (`obj.attr.method()`). The current design relies on `ty` for full inference.
+#### Facts consumed by graph construction
 
-#### `TypeResolver` Trait
+| Needed Fact | Graph Use |
+|-------------|-----------|
+| Direct callable target for `foo()` or an alias call | `DirectCall` edge |
+| Attribute target for `obj.method()` | `MethodCall` edge |
+| Property getter target for `obj.prop` | `PropertyAccess` edge |
+| Dunder target for operations like `str(obj)` or `obj + other` | `ImplicitDunder` edge |
+| First-party definition identity | Node lookup or node registration |
+| External qualified name | Phantom-node lookup in the blocking database |
 
-All type resolution goes through this abstraction:
+The exact ty APIs used to obtain these facts are an implementation detail of the pinned ty revision and must be validated in the ty integration spike. This document describes Strato's semantic requirements, not ty's public API.
 
-```rust
-trait TypeResolver {
-    fn resolve_type(&self, expr: &Expr) -> Option<Type>;
-    fn resolve_callee(&self, expr: &Expr) -> Option<NodeId>;
-    fn resolve_attribute(&self, base_type: &Type, attr: &str) -> Option<NodeId>;
-    fn mro(&self, type_: &Type) -> Vec<Type>;
-}
-```
+#### What Strato does not consume from ty
 
-**Implementations:**
-
-- `TyTypeResolver`: Uses `ty` crate for full inference
-- `NullTypeResolver`: Fallback that always returns `None` (used if `ty` initialization fails)
-
-#### What `ty` Gives Over `ScopeBindings`
-
-| Capability | `ScopeBindings` | `ty` |
-|------------|-----------------|------|
-| Variable bindings | ✓ | ✓ |
-| Import alias tracking | ✗ | ✓ |
-| Return type inference | ✗ | ✓ |
-| Attribute resolution | ✗ | ✓ |
-| Method resolution order (MRO) | ✗ | ✓ |
-| Generic type instantiation | ✗ | ✓ |
-| Union type narrowing | ✗ | ✓ |
-
-#### `ty` Feature Budget
-
-Strato uses a **subset** of `ty`'s capabilities to balance accuracy and performance:
-
-| Feature | Used? | Why / Why Not |
-|---------|-------|---------------|
-| Type inference | ✓ | Core requirement for attribute resolution |
-| MRO computation | ✓ | Needed for method lookup in inheritance hierarchies |
-| Alias tracking | ✓ | Handles `x = foo.bar; x()` patterns |
-| Return type inference | ✓ | Handles `factory().method()` patterns |
-| Generic instantiation | ✗ | Adds complexity, low ROI for blocking detection |
-| Union narrowing | ✗ | Requires control flow analysis, expensive |
-| Literal types | ✗ | Not relevant for call graph construction |
-| TypedDict | ✗ | Not relevant for call graph construction |
+| Capability | v1 Position |
+|------------|-------------|
+| Generic instantiation details | Not needed unless they affect callable target identity |
+| Union branch narrowing as diagnostics | Not surfaced as warnings or uncertain findings |
+| Literal value reasoning | Not part of blocking detection |
+| TypedDict field modeling | Not relevant to callable graph construction |
+| Serialized Salsa query state | Not cacheable cross-run |
 
 #### Graceful Degradation
 
-`ty` is a best-effort system. When it cannot infer a type:
+`ty` is best-effort for Strato's purposes. When the semantic layer cannot provide a needed fact:
 
-1. `resolve_type()` returns `None`
-2. Caller skips the edge (no panic, no error)
-3. Analysis continues with reduced precision
+1. The graph builder receives no target for that expression.
+2. The corresponding edge is skipped.
+3. Analysis continues with reduced recall and no speculative diagnostic.
 
 **Example:**
 
@@ -240,15 +215,15 @@ def foo(x):  # x has no type annotation
 
 Result: No edge created for `x.method()` call. This is **by design** – we prefer false negatives over false positives.
 
-#### Fallback: `NullTypeResolver`
+#### ty Failures and Panics
 
-If `ty` initialization fails (e.g., due to malformed AST or internal error), Strato falls back to `NullTypeResolver`, which always returns `None`. This degrades analysis to name-based resolution only (no attribute or method resolution).
+If ty cannot initialize for the project or a semantic query fails, Strato emits a warning and skips semantic facts from the affected scope. Recoverable Rust panics at the ty boundary are caught on a best-effort basis where unwinding is available. Strato does not claim to recover from aborting panics or process-level failures.
 
 ### External Symbol Modeling (Phantom Nodes)
 
 External symbols (from third-party libraries or stdlib) are not parsed by Strato. However, they must be represented in the call graph if they are blocking.
 
-> **Decision recap:** See [Phantom Nodes](./design-overview.md#phantom-nodes-for-external-symbols) for why we model externals as phantom nodes rather than parsing third-party source.
+> **Decision recap:** See [Phantom Nodes](./design-overview.md#phantom-nodes) for why we model externals as phantom nodes rather than parsing third-party source.
 
 #### Phantom Node Creation
 
@@ -271,19 +246,9 @@ for (qualified_name, status) in blocking_database {
 }
 ```
 
-#### Import Binding Rules
+#### External Qualification
 
-When an import statement is encountered, the symbol table is updated with bindings:
-
-| Import Form | Binding Created | Example |
-|-------------|-----------------|---------|
-| `import foo` | `foo` → `foo` module | `import requests` → `requests` |
-| `import foo.bar` | `foo` → `foo` module | `import requests.adapters` → `requests` |
-| `from foo import bar` | `bar` → `foo.bar` | `from requests import get` → `get` |
-| `from foo import bar as baz` | `baz` → `foo.bar` | `from requests import get as g` → `g` |
-| `from foo.bar import baz` | `baz` → `foo.bar.baz` | `from os.path import join` → `join` |
-
-These bindings are used during callee resolution to map names to qualified names, which are then looked up in the call graph.
+Strato does not maintain separate import binding rules for external symbols. The ty-backed semantic layer provides a resolved first-party definition identity or, when available, an external qualified name. Strato uses that normalized name only to match a phantom node from the blocking database.
 
 #### Invisible Externals
 
@@ -296,7 +261,7 @@ def foo():
     some_library.unknown_function()  # No edge created (not in DB)
 ```
 
-This is **by design**: Strato only tracks blocking behavior for known-blocking functions. Unknown externals are assumed non-blocking (optimistic assumption).
+This is **by design**: Strato only tracks blocking behavior for known-blocking functions. Unknown externals remain `Unknown` and are skipped rather than assumed blocking.
 
 ### Properties & Dunder Methods
 
@@ -317,12 +282,11 @@ x = foo.bar  # This is a call to bar(), not a field access
 **Detection algorithm:**
 
 1. Encounter `ExprAttribute` (e.g., `foo.bar`)
-2. Resolve type of `foo` via `type_resolver.resolve_type()`
-3. Lookup `bar` in type's class definition
-4. Check if `bar` is decorated with `@property`
-5. If yes, create `PropertyAccess` edge to `bar` getter
+2. Ask the semantic layer whether `foo.bar` resolves to a property getter
+3. Normalize the getter target to a Strato `NodeId`
+4. If the target is a property getter, create a `PropertyAccess` edge
 
-**Unknown types:** If type resolution fails, no property edge is created (high precision).
+**Unknown semantic target:** If the semantic layer cannot resolve the property getter, no property edge is created (high precision).
 
 #### Dunder Method Mapping
 
@@ -364,11 +328,11 @@ Many Python operations implicitly call dunder methods. Strato models these as `I
 
 1. Encounter operation (e.g., `ExprBinOp` with `Add`)
 2. Map operation to dunder method (`__add__`)
-3. Resolve type of left operand via `type_resolver.resolve_type()`
-4. Lookup `__add__` in type's MRO via `type_resolver.mro()`
+3. Ask the semantic layer whether the operation resolves to `__add__`
+4. Normalize the dunder target to a Strato `NodeId`
 5. If found, create `ImplicitDunder` edge
 
-**Unknown types:** If type resolution fails, no dunder edge is created.
+**Unknown semantic target:** If the semantic layer cannot resolve the dunder target, no dunder edge is created.
 
 #### Context Manager Detection
 

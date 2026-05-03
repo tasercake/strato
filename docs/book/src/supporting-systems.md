@@ -1,6 +1,6 @@
 # Supporting Systems
 
-> **Decision recap:** [Caching Strategy](./design-overview.md#caching-strategy-and-ty-boundary) – file-level caching with SHA-256 content hashing, excluding ty results and propagation from the cache. [Distribution](./design-overview.md#distribution-dual-pypi-packages) – dual PyPI packages with zero production footprint.
+> **Decision recap:** [Caching Strategy](./design-overview.md#caching-strategy) – file-level caching with SHA-256 content hashing for Strato-owned parse/extraction artifacts, excluding ty semantic results, call graph edges, propagation, and diagnostics from the cache. [Distribution](./design-overview.md#distribution) – dual PyPI packages with zero production footprint.
 
 [tooling]
 
@@ -118,7 +118,7 @@ For the complete configuration schema with all available options, see [Appendix 
 
 ### Caching Strategy
 
-Strato implements file-level caching to accelerate incremental analysis. The cache stores per-file parse results and symbol extraction, keyed by SHA-256 content hash.
+Strato implements file-level caching to accelerate incremental analysis. The cache stores Strato-owned per-file parse/extraction artifacts keyed by SHA-256 content hash. It does not store ty semantic facts or any graph result that depends on ty.
 
 #### What Is Cached
 
@@ -127,17 +127,16 @@ Each file produces a **per-file analysis result** that can be cached:
 ```rust
 struct CachedFileResult {
     content_hash: [u8; 32],          // SHA-256 of file contents
-    symbols: Vec<SymbolDef>,         // Symbols defined in this file
-    imports: Vec<ImportStatement>,   // Import statements
-    call_edges: Vec<CallEdge>,       // Call edges from functions in this file
+    syntax: FileSyntax,              // Declarations, imports-as-syntax, decorators
     annotations: Vec<AnnotationEntry>, // @blocking, @non_blocking found
 }
 ```
 
 #### What Is NOT Cached
 
-- **Type inference results**: The `ty` crate uses Salsa for incremental computation, which maintains its own in-memory cache. Salsa's cache is not serializable and is designed for single-session use.
-- **Call graph structure**: Rebuilt from cached (or fresh) per-file call edges. This is fast (inserting edges into the graph structure).
+- **ty semantic results**: The `ty` crate uses Salsa for incremental computation, which maintains its own in-memory cache. Salsa's cache is not serializable and is designed for single-session use.
+- **Resolved semantic facts**: Module/name/type results from ty are rebuilt or re-queried each run.
+- **Call edges and call graph structure**: Rebuilt each run because edge targets depend on current semantic facts.
 - **Blocking propagation**: Always rerun. Linear-time O(V+E), completes in milliseconds.
 
 #### Cache Location and Format
@@ -172,11 +171,13 @@ For each file in project:
   1. Compute SHA-256 hash
   2. Check manifest for matching hash
      ├─ Hit:  Load cached CachedFileResult
-     └─ Miss: Parse → extract → serialize to cache
-  3. Merge file's call edges into project call graph
+      └─ Miss: Parse → extract → serialize to cache
+   3. Initialize/query ty semantic context for the project
+   4. Build call edges and project call graph from AST + semantic facts
 
 Always recompute (not cached):
-  - Call graph structure (rebuilt from edges)
+  - ty semantic database and semantic facts
+  - Call edges and call graph structure
   - Blocking propagation (SCC + topological)
   - Diagnostics (generated from propagated graph)
 ```
@@ -185,7 +186,7 @@ Always recompute (not cached):
 
 | Scenario | Target | Rationale |
 |----------|--------|-----------|
-| Cached run (no changes) | < 500ms for 500 files | Hash comparison + graph rebuild + propagation |
+| Cached run (no changes) | < 500ms for 500 files | Hash comparison + cached syntax + semantic setup/query + graph rebuild + propagation |
 | Fresh run (first analysis) | < 5s for 500 files | Full parse + resolve + build + propagate |
 | Incremental (1 file changed) | < 1s for 500 files | Re-parse 1 file + full graph rebuild |
 
@@ -194,7 +195,7 @@ Always recompute (not cached):
 | Phase | Percentage | Optimization Strategy |
 |-------|-----------|----------------------|
 | Parse | ~60% | Parallel parsing with `rayon` |
-| Type queries (ty) | ~25% | Salsa incremental computation |
+| Semantic setup/queries (ty) | ~25% | Salsa in-run incremental computation |
 | Propagation | ~10% | SCC-based linear-time algorithm |
 | Reporting | ~5% | Minimal graph traversal |
 
@@ -206,7 +207,7 @@ Ruff-level performance (200ms for 630 files) is difficult for **fresh** runs bec
 3. **Graph construction**: Visiting every function body and resolving callees
 4. **Propagation**: Even at O(V+E), thousands of functions with tens of thousands of edges
 
-However, **cached runs** approach ruff-level speed because: no parsing, no AST walking, graph rebuild from cached edges is fast, propagation is a single linear pass.
+However, **cached runs** can approach ruff-level speed only if ty setup/query and graph construction stay cheap enough; there is no cross-run ty cache and no cached call-edge set.
 
 ### Distribution & Packaging
 

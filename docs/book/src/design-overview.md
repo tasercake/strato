@@ -14,9 +14,9 @@ Strato builds a full transitive call graph: a project-wide directed graph of fun
 
 When Strato encounters a call it cannot resolve (e.g., `obj.method()` where `obj`'s type is unknown, or a dynamic import), it must decide: treat the call as potentially blocking (emit a diagnostic) or treat it as unknown (skip silently). This is the classic precision vs. recall tradeoff in static analysis. High recall (flag everything uncertain) maximizes detection but floods users with false positives. High precision (only flag proven cases) minimizes false positives but misses real bugs.
 
-Strato treats unknown as unknown – unresolvable calls are neither blocking nor non-blocking, and are skipped. Diagnostics are only emitted when blocking status is definitively proven, yielding zero false positives so users trust the tool's output. This reflects the `BlockingStatus` enum design: `Unknown` is a permanent terminal state, never reclassified to `NotBlocking` or `Blocking`, and the propagation algorithm (Section 6) explicitly skips `Unknown` nodes. Strato is designed for expert review and CI integration, where false positives are more damaging than false negatives – a false positive wastes developer time, erodes trust, and leads to tool abandonment, while a false negative may be caught by other means (testing, profiling, manual review). The tradeoff is false negatives when resolution fails, meaning the tool may miss bugs in complex codebases.
+Strato treats unknown as unknown – unresolvable calls are neither blocking nor non-blocking, and are skipped. Diagnostics are only emitted when blocking status is definitively proven, yielding a high-trust, low-false-positive report surface for proven-blocking findings. This reflects the `BlockingStatus` enum design: `Unknown` is a permanent terminal state, never reclassified to `NotBlocking` or `Blocking`, and the propagation algorithm (Section 6) explicitly skips `Unknown` nodes. Strato is designed for expert review and CI integration, where false positives are more damaging than false negatives – a false positive wastes developer time, erodes trust, and leads to tool abandonment, while a false negative may be caught by other means (testing, profiling, manual review). The tradeoff is false negatives when resolution fails, meaning the tool may miss bugs in complex codebases.
 
-**Risk:** The false negative rate could be unacceptably high in codebases with heavy use of dynamic typing, metaprogramming, or third-party libraries without type stubs. If Strato misses too many real bugs, users will perceive it as incomplete or unreliable. The mitigation is twofold: (1) ty integration (see Type Inference) improves type resolution, reducing the `Unknown` rate; (2) user annotations (`@blocking`, `@non_blocking`) allow manual override when Strato's analysis is insufficient.
+**Risk:** The false negative rate could be unacceptably high in codebases with heavy use of dynamic typing, metaprogramming, or third-party libraries without type stubs. If Strato misses too many real bugs, users will perceive it as incomplete or unreliable. The mitigation is twofold: (1) ty integration (see Semantic Substrate) improves semantic resolution, reducing the `Unknown` rate; (2) user annotations (`@blocking`, `@non_blocking`) allow manual override when Strato's analysis is insufficient.
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
@@ -53,24 +53,26 @@ Repeatedly scan all nodes, propagating blocking status from callees to callers, 
 Maintain a worklist of nodes whose blocking status has changed. When a node's status changes, add its callers to the worklist. Repeat until worklist is empty. More efficient than naive iteration (only revisits affected nodes) and easier to implement than SCC decomposition, but still requires multiple passes in the presence of cycles with worst-case complexity of O(V × E) and non-deterministic worklist ordering.
 </details>
 
-## Type Inference
+## Semantic Substrate
 
-To resolve method calls (`obj.method()`), property accesses (`obj.prop`), and dunder invocations (`str(obj)`), Strato needs to infer the type of `obj`. A hand-rolled `ScopeBindings` system could track simple cases – `self`/`cls` in methods, constructor calls (`x = MyClass()`), and direct imports – but this misses common patterns like alias tracking (`x = requests.get; x()`) and return type inference (`loader = get_loader(); loader.load()`). These capabilities are critical: alias tracking is essential for executor wrapper detection (the pattern `safe = sync_to_async(func); await safe()` requires resolving `safe` back to a callable), and return type inference enables resolving indirect calls like `get_loader().load()`.
+To resolve direct calls, method calls (`obj.method()`), property accesses (`obj.prop`), and dunder invocations (`str(obj)`), Strato needs more than a local symbol table. It needs Python-aware module resolution, import aliasing, name binding, class hierarchy lookup, and inferred expression types. A hand-rolled local binding resolver could track simple cases like `self`/`cls`, constructor calls (`x = MyClass()`), and direct imports, but it would duplicate a large part of Python's static semantics and still miss common patterns like `x = requests.get; x()` or `loader = get_loader(); loader.load()`.
 
-Strato integrates Astral's `ty_python_semantic` crate for full type inference, wrapped in a `trait TypeResolver` abstraction to isolate Strato from ty's API. This leverages Astral's investment in Python's type system and Salsa's in-run memoization. The tradeoffs are real: ty is a pre-1.0 dependency (API instability, potential panics), Salsa adds complexity, there's a double parse (ruff AST for Strato + ty's internal parse), and ty results are not cacheable cross-run (Salsa is in-memory only). These risks are mitigated by pinning to a specific ruff rev, panic isolation (catch panics, downgrade to `NullTypeResolver` per-file), and accepting the double parse cost (<100ms for 500 files). The caching limitation is addressed in Caching Strategy.
+Strato uses Astral's `ty_python_semantic` crate as the semantic substrate. Strato does not define an independent module resolver or semantic resolver with parallel semantics. Instead, the analysis layer asks ty-backed semantic code for a small set of stable facts needed by blocking analysis: what callable an expression refers to, whether an attribute resolves to a method or property, what class hierarchy lookup says about an implicit dunder, and which imports/names resolve to first-party definitions or known external qualified names. Strato then owns the blocking layer: call graph nodes and edges, phantom nodes from the blocking database, executor-wrapper edge suppression, SCC propagation, and diagnostics.
 
-**Risk:** ty is pre-1.0 and may have bugs, panics, or API changes. If ty fails on a file, Strato degrades gracefully (emit a warning, skip type-dependent analysis for that file). The pinned rev strategy means Strato is frozen at a specific ruff version – upgrading requires a dedicated compatibility spike.
+The tradeoffs are real: ty is pre-1.0, its public API may change, Salsa adds an in-memory query system, and ty's semantic database is not serializable for Strato's cross-run cache. Strato also parses files with `ruff_python_parser` for Strato-owned syntactic extraction while ty builds its own semantic view from the same source set. That is an intentional integration boundary, not a claim that ty consumes Strato's AST. The double-parse cost is a performance risk to validate, not something the design assumes away. Panic handling is best-effort: Strato will isolate calls into ty where Rust unwinding can be caught, emit a warning, and skip semantic facts for the affected file or query. This does not protect against aborting panics or process-level failures.
+
+**Risk:** ty is pre-1.0 and may have bugs, panics, or API changes. If ty cannot provide a semantic fact, Strato skips the corresponding call edge or attribute/dunder edge per the precision policy. The pinned rev strategy means Strato is frozen at a specific ruff/ty revision, and upgrades require a dedicated compatibility spike.
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
 
-**1. Hand-rolled ScopeBindings**
+**1. Hand-rolled local binding resolver**
 
-Implement a minimal type inference system that tracks local variable bindings within function scopes. Resolve `self`, `cls`, constructors, and imports. Skip everything else. Offers full control with no external dependencies and a simple implementation, but misses common patterns (alias tracking is critical for executor wrapper detection), is limited by what we're willing to implement, and reinvents the wheel.
+Implement a minimal semantic system that tracks local variable bindings within function scopes. Resolve `self`, `cls`, constructors, and imports. Skip everything else. Offers full control with no external dependencies and a simple implementation, but misses common patterns (alias tracking is critical for executor wrapper detection), is limited by what we're willing to implement, and reinvents the wheel.
 
-**2. Hybrid: ScopeBindings + ty fallback**
+**2. Hybrid: local resolver + ty fallback**
 
-Use ScopeBindings for simple cases, query ty for complex cases. Provides graceful degradation if ty fails, but requires maintaining two type inference systems with an unclear boundary between "simple" and "complex", adding complexity for minimal benefit.
+Use local rules for simple cases and query ty for complex cases. Provides apparent graceful degradation if ty fails, but requires maintaining two semantic systems with an unclear boundary between "simple" and "complex", adding complexity and inconsistency risk for minimal benefit.
 </details>
 
 ## Phantom Nodes
@@ -79,7 +81,7 @@ Strato's call graph includes nodes for user-defined functions (parsed from sourc
 
 Strato pre-seeds phantom nodes from its blocking function database: for every entry, a call graph node is created with no source location, zero parsing cost, and no version skew. The database is the single source of truth. During Phase 4 initialization, the system iterates over the blocking database and creates a `CallGraphNode` for each entry with `location: None` and `blocking_status: KnownBlocking`. When the call graph builder encounters `time.sleep(1)`, the symbol resolution constructs the qualified name `"time.sleep"`, finds the phantom node, and creates an edge. This aligns with Strato's Precision Policy: only known blocking functions are tracked, and external calls not in the database are treated as `Unknown` and skipped.
 
-**Risk:** Tightly coupled to the blocking database. If the database is incomplete, calls to unlisted blocking functions will be unresolvable and skipped. The mitigation is a comprehensive database (~80+ entries) and user extensibility (config allows adding custom entries, `@blocking` decorator allows per-function annotation).
+**Risk:** Tightly coupled to the blocking database. If the database is incomplete, calls to unlisted blocking functions will be unresolvable and skipped. The mitigation is a curated database (currently 60 entries) and user extensibility (config allows adding custom entries, `@blocking` decorator allows per-function annotation).
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
@@ -137,7 +139,7 @@ Always point to the deepest first-party function in the chain. Most actionable s
 
 Strato needs a database of known blocking functions to seed phantom nodes (see Phantom Nodes). An exhaustive database covering every blocking function in stdlib and popular libraries would maximize coverage but create a massive maintenance burden and high risk of false positives for functions that are technically blocking but fast (e.g., `os.getpid()`).
 
-Strato uses a curated database of ~80 entries focused on common, impactful blocking functions: I/O, synchronization, sleep/wait, and subprocess. The list covers the most common blocking patterns (`time.sleep`, `requests.*`, `urllib.*`, `socket.*`, `subprocess.*`, `os.read`, `open()`, database drivers) while excluding fast blocking functions that rarely cause problems. The database is user-extensible via config and the `@blocking` decorator.
+Strato uses a curated database of 60 entries focused on common, impactful blocking functions: I/O, synchronization, sleep/wait, and subprocess. The list covers the most common blocking patterns (`time.sleep`, `requests.*`, `urllib.*`, `socket.*`, `subprocess.*`, `os.read`, `open()`, database drivers) while excluding fast blocking functions that rarely cause problems. The database is user-extensible via config and the `@blocking` decorator.
 
 **Risk:** May miss blocking functions common in specific domains (e.g., scientific computing). Users must extend via config.
 
@@ -191,9 +193,9 @@ No annotations package. Simplest approach, but poor UX with no type checking for
 
 ## Import Resolution
 
-Python's import system is extremely flexible – dynamic imports, import hooks, `.pth` files, namespace packages, conditional imports – and Strato must decide which forms to support. Strato supports static imports plus pragmatic extensions (v1.1): (a) star imports via literal `__all__` + public names fallback (one level only), (b) basic namespace packages within configured source roots, (c) conditional imports (first branch only). Dynamic imports, import hooks, and `.pth` files are excluded. Star imports and namespace packages are common in real-world code, and addressing them avoids a major source of false negatives without crossing into intractable territory. Unresolvable imports are treated as `Unknown` (see Precision Policy) and skipped silently.
+Python's import system is extremely flexible – dynamic imports, import hooks, `.pth` files, namespace packages, conditional imports – and Strato must define the semantic scope it expects from ty rather than reimplementing Python imports itself. For v1, Strato configures ty with the project source roots, Python version, and stub paths, then consumes ty's resolved module/name facts for static filesystem-backed imports. Dynamic imports, import hooks, and runtime `sys.path` mutation remain outside Strato's guarantees. Star imports, namespace packages, and conditional imports are documented as best-effort only to the extent ty can resolve them under the configured source roots. Unresolvable imports are treated as `Unknown` (see Precision Policy) and skipped silently.
 
-**Risk:** Codebases using `importlib.import_module()` extensively will have many unresolvable imports, leading to false negatives. Mitigated by `@blocking` decorator for manual annotation.
+**Risk:** Codebases using `importlib.import_module()` or runtime import customization extensively will have many unresolvable imports, leading to false negatives. Mitigated by explicit imports, type information where possible, and `@blocking` decorator for manual annotation.
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
@@ -209,9 +211,9 @@ Absolute, from-import, and relative only. Simple and fast, but misses star impor
 
 ## Caching Strategy
 
-Strato's seven-phase pipeline has cacheable per-file phases (Parse, Resolve) and cross-file phases (Build, Propagate, Report). ty's Salsa database is in-memory only and not serializable, which constrains the caching design. Strato caches Phases 1-3 results (parse + imports) keyed by file content hash and re-runs Phases 4-7 (call graph construction + propagation) every time. This is the only option compatible with ty – Salsa's in-run memoization handles repeated queries within a single analysis run, but cross-run persistence is not supported. Per-file caching skips parsing (the expensive phase) while accepting that graph construction and propagation re-run at O(V+E). Target: <500ms cached on 500 files.
+Strato's cache boundary is limited to Strato-owned per-file artifacts from discovery, parse, and syntactic extraction: file manifests, content hashes, parsed AST-derived declarations, import statements as syntax, and decorator annotations. ty's Salsa database, resolved semantic facts, call edges that depend on semantic resolution, the project call graph, propagation results, and diagnostics are not serialized. Salsa's in-run memoization handles repeated semantic queries within one analysis run, but cross-run persistence belongs only to Strato's own stable artifacts. Target: <500ms cached on 500 files, subject to validation because semantic setup and call graph construction still run each time.
 
-**Risk:** If graph construction or ty queries are slower than expected, cached runs may not meet the <500ms target. Requires performance validation.
+**Risk:** If ty setup, ty queries, or graph construction are slower than expected, cached runs may not meet the <500ms target. Requires performance validation.
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
@@ -222,14 +224,14 @@ Re-run everything. Simple, but slow on large codebases.
 
 **2. Full pipeline caching**
 
-Cache the entire call graph and propagation results. Maximum performance, but complex invalidation and incompatible with ty (Salsa is not serializable).
+Cache the entire call graph and propagation results. Maximum performance, but complex invalidation and unsafe across semantic changes because call edges depend on ty facts that Strato does not serialize.
 </details>
 
 ## Determinism Contract
 
-Strato is designed for CI integration, where non-deterministic output causes flaky builds and erodes trust. Strato enforces determinism at multiple levels: `BTreeMap` for all output-affecting collections, diagnostics sorted by file path → line → column → error code, blocking path selection using shortest-path with lexicographic tie-breaking, and cache keys using SHA-256 content hashes. The O(log n) overhead of `BTreeMap` versus `HashMap` is negligible compared to parsing and type inference.
+Strato is designed for CI integration, where non-deterministic output causes flaky builds and erodes trust. Strato enforces determinism at the blocking-analysis boundary: output-affecting collections use ordered data structures, filesystem inputs are normalized and sorted, diagnostics are sorted by file path → line → column → error code, blocking path selection uses shortest-path with lexicographic tie-breaking, and cache keys use SHA-256 content hashes. ty's internal query order is not part of Strato's output contract; any semantic facts consumed from ty must be normalized before they affect graph insertion or diagnostics. The O(log n) overhead of ordered maps versus hash maps is negligible compared to parsing and semantic analysis.
 
-**Risk:** Accidentally using `HashMap` in an output-affecting code path breaks the contract silently. Mitigated by determinism regression tests (run same fixture twice, assert identical output).
+**Risk:** Accidentally using unordered iteration in an output-affecting code path breaks the contract silently. Mitigated by determinism regression tests (run the same fixture multiple times, with cache cold and warm, and assert identical output).
 
 <details>
 <summary><strong>Alternatives considered</strong></summary>
@@ -241,9 +243,9 @@ Use `HashMap`, accept varying output order. Simpler and slightly faster, but lea
 
 ## Failure and Warning Policy
 
-The analysis pipeline can encounter parse errors, unresolvable imports, ty panics, and I/O errors. Real-world codebases have files with parse errors (generated code, legacy syntax) and unresolvable imports (optional dependencies), so aborting analysis for one bad file is unacceptable – but if all files fail to parse, the user should be alerted.
+The analysis pipeline can encounter parse errors, unresolvable imports, ty semantic failures, recoverable ty panics, and I/O errors. Real-world codebases have files with parse errors (generated code, legacy syntax) and unresolvable imports (optional dependencies), so aborting analysis for one bad file is unacceptable – but if all files fail to parse, the user should be alerted.
 
-Strato uses a tiered failure policy: fatal errors (config errors, I/O errors, all files failed to parse) produce a non-zero exit, while non-fatal warnings (individual parse errors, unresolvable imports, ty panics) are collected but don't affect exit code. Exit codes: 0 = no blocking issues, 1 = blocking issues found, 2 = config error, 3 = all files failed to parse. Warnings never affect exit code.
+Strato uses a tiered failure policy: fatal errors (config errors, I/O errors, all files failed to parse) produce a non-zero exit, while non-fatal warnings (individual parse errors, unresolvable imports, ty semantic failures, recoverable ty panics) are collected but don't affect exit code. Exit codes: 0 = no blocking issues, 1 = blocking issues found, 2 = config error, 3 = all files failed to parse. Warnings never affect exit code.
 
 **Risk:** Users must understand which errors are fatal vs. warnings. Mitigated by clear error messages and documentation.
 

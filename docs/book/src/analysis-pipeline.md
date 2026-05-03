@@ -3,10 +3,10 @@
 Strato's analysis runs as a seven-phase pipeline, each phase consuming the outputs of the previous:
 
 ```
-Discovery → Parse → Resolve → Build → Annotate → Propagate → Report
+Discovery → Parse → Semantics → Build → Annotate → Propagate → Report
 ```
 
-Each phase is designed for isolation, testability, and graceful degradation. Failures in early phases (parse errors, resolution failures) are collected as warnings but do not halt analysis.
+Each phase is designed for isolation, testability, and graceful degradation. Failures in early phases (parse errors, semantic resolution failures) are collected as warnings but do not halt analysis.
 
 ### Phase 1: Discovery
 
@@ -15,11 +15,10 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
 **Steps:**
 
 1. **Load configuration** from `pyproject.toml` under `[tool.strato]`:
-   - `source_roots`: explicit list of directories containing first-party code
+   - `src_roots`: explicit list of directories containing first-party code
    - `exclude`: glob patterns for files/directories to skip
-   - `blocking_db_path`: path to blocking function database
 
-2. **Auto-detect source roots** if not explicitly configured:
+2. **Auto-detect source roots** if `src_roots` is not explicitly configured:
    - Check `[tool.setuptools.packages.find]` for `where` directive
    - Fall back to common layouts: `src/` directory if present, otherwise project root
    - Scan for top-level `__init__.py` files to identify package roots
@@ -33,11 +32,11 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
 
 **Output:** `FileManifest` containing:
 - `files: Vec<FileEntry>` where `FileEntry = { path, content_hash, is_first_party }`
-- `source_roots: Vec<PathBuf>`
+- `source_roots: Vec<PathBuf>` (internal derived value from configured `src_roots` or auto-detection)
 
 ### Phase 2: Parse
 
-**Objective:** Parse all Python files into ASTs and extract symbol definitions.
+**Objective:** Parse all Python files into Strato-owned ASTs and extract syntactic declarations needed by later phases.
 
 **Steps:**
 
@@ -46,7 +45,7 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
    - Parse errors are **non-fatal**: collected as `AnalysisWarning::ParseError { path, error }`
    - Analysis continues on all successfully parsed files
 
-2. **Extract `FileSymbols`** from each AST:
+2. **Extract `FileSyntax`** from each AST:
    - **Function/method definitions:** name, qualified path, `is_async` flag, location
    - **Class definitions:** name, base classes, location
    - **Import statements:** module, imported names, aliases, relative level
@@ -62,98 +61,40 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
    - Isolates analysis logic from ruff API changes
    - Enables test mocking with synthetic ASTs
 
-**Output:** `ParsedFiles = HashMap<PathBuf, ParsedModule>` where `ParsedModule = { ast, symbols }`
+**Output:** `ParsedFiles = BTreeMap<PathBuf, ParsedModule>` where `ParsedModule = { ast, syntax }`. The ordered map is part of the determinism contract for Strato-owned iteration.
 
-### Phase 3: Resolve (Module Resolution)
+### Phase 3: Semantics (ty Semantic Context)
 
-**Objective:** Map Python import statements to source files and build a global symbol table.
+**Objective:** Initialize ty over the project and expose only the stable semantic facts Strato needs for blocking analysis.
 
-**Risk:** This is the **highest-risk component** of the pipeline. Python's import system is notoriously complex, and edge cases abound.
+**Risk:** This is the **highest-risk integration point** of the pipeline. Python's import and type semantics are complex, and ty is pre-1.0.
 
-#### Supported Import Forms
+#### Strato-owned setup
 
-| Import Form | Example | Resolution Strategy |
-|-------------|---------|---------------------|
-| Absolute | `import foo.bar` | Lookup `foo/bar.py` or `foo/bar/__init__.py` in source roots |
-| From-import | `from foo.bar import baz` | Resolve `foo.bar` module, then lookup `baz` symbol |
-| Relative | `from . import sibling` | Resolve relative to current module's parent |
-| Relative-from | `from ..pkg import mod` | Walk up directory tree by relative level |
-| Package `__init__.py` | `import pkg` | Resolve to `pkg/__init__.py` |
-| Multi-level | `from a.b.c.d import e` | Iteratively resolve each component |
-| `.pyi` stubs | `import foo` | Prefer `foo.pyi` over `foo.py` if present |
+1. Configure ty with the same source roots, Python version, and stub paths used by Strato discovery.
+2. Provide the discovered file set and source text to ty's semantic database.
+3. Run Strato syntactic extraction from Phase 2 in parallel with, but not as a replacement for, ty's own semantic model.
+4. Normalize facts consumed from ty into deterministic Strato identifiers before graph construction.
 
-#### Unsupported Import Forms
+#### Facts Strato consumes from ty
 
-| Import Form | Example | Why Unsupported |
-|-------------|---------|-----------------|
-| Star imports | `from foo import *` | Partially supported: see algorithm below |
-| Conditional imports | `if sys.version_info >= (3, 10): import x` | Best-effort: analyze first branch only |
-| Dynamic imports | `importlib.import_module(var)` | Requires runtime information |
-| Namespace packages | `import namespace.pkg` | Partially supported: see below |
-| `.pth` files | `site-packages/custom.pth` | Requires runtime sys.path manipulation |
-| Import hooks | `sys.meta_path.append(...)` | Arbitrary code execution at import time |
+| Fact | Used For |
+|------|----------|
+| Resolved callable target for a call expression | Direct call and alias edge construction |
+| Resolved first-party definition identity | Mapping semantic targets to `CallGraphNode`s |
+| External qualified name when available | Matching calls against blocking database phantom nodes |
+| Attribute target and owning class | Method/property edge construction |
+| Class hierarchy lookup for an operation | Dunder edge construction |
 
-#### Star Import Resolution Algorithm
+Strato does not serialize ty facts, expose ty's internal types in public APIs, or maintain a parallel import resolver. If ty cannot provide a fact, Strato treats the expression as unknown and creates no edge.
 
-Star imports (`from foo import *`) are resolved with limited scope:
-
-1. Parse the target module (`foo`)
-2. Look for a literal `__all__` assignment:
-   - If `__all__ = ["a", "b", "c"]` exists, import only those names
-   - If `__all__` is dynamically constructed, skip (treat as unresolvable)
-3. If no `__all__`, collect all public top-level names (not starting with `_`)
-4. **One level only:** do not recursively resolve star imports in the target module
-
-#### Namespace Package Support
-
-Basic support for PEP 420 namespace packages:
-
-- Directories **without** `__init__.py` are treated as namespace packages **only within configured source roots**
-- Resolution algorithm checks for regular packages first (with `__init__.py`), then falls back to namespace package lookup
-- External namespace packages (e.g., in site-packages) are not supported
-
-#### Resolution Algorithm Pseudocode
-
-```
-fn resolve_import(import_stmt, current_module_path, source_roots):
-    if import_stmt.is_relative():
-        base_path = walk_up(current_module_path, import_stmt.level)
-        module_path = base_path.join(import_stmt.module)
-    else:
-        module_path = import_stmt.module
-    
-    for root in source_roots:
-        candidates = [
-            root / module_path.with_suffix(".pyi"),
-            root / module_path.with_suffix(".py"),
-            root / module_path / "__init__.pyi",
-            root / module_path / "__init__.py",
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return ResolvedModule { path: candidate, kind: File }
-        
-        # Namespace package fallback
-        if (root / module_path).is_dir():
-            return ResolvedModule { path: root / module_path, kind: NamespacePackage }
-    
-    return None  # Unresolved (external or missing)
-```
-
-#### Data Structures
-
-- **`ModuleMap`:** `HashMap<ModulePath, FilePath>` – maps Python module paths (e.g., `foo.bar.baz`) to source files
-- **`SymbolTable`:** `HashMap<QualifiedName, SymbolDef>` – maps fully qualified names (e.g., `foo.bar.MyClass.method`) to definitions
-- **`ResolvedModule`:** `{ path: PathBuf, kind: ModuleKind }` where `ModuleKind = File | Package | NamespacePackage`
-- **`SymbolDef`:** `enum { Function, Class, Variable, Import }`
-
-**Output:** `ModuleMap` and `SymbolTable`
+**Output:** `SemanticContext` plus a deterministic `SemanticFactSet` for facts already queried during this run. The semantic context is in-memory only.
 
 ### Phase 4: Build (Call Graph Construction)
 
 **Objective:** Construct a directed graph of all function calls in the codebase.
 
-This phase walks the AST of every function body and records call edges. Callee resolution uses the symbol table (Phase 3) and type inference (via `ty` crate).
+This phase walks the AST of every function body and records call edges. Callee resolution uses the ty-backed semantic context from Phase 3 and normalized Strato identifiers, not a separate Strato module resolver.
 
 **Detailed algorithm in [Call Graph & Type Resolution](./call-graph-type-resolution.md#call-graph--type-resolution).**
 

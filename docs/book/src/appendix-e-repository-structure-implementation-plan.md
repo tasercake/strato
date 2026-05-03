@@ -17,7 +17,7 @@ strato/                              # Monorepo root
 │   │       ├── lib.rs
 │   │       ├── discovery.rs         # Phase 1: file discovery, config loading
 │   │       ├── parser.rs            # Phase 2: parser abstraction layer
-│   │       ├── resolver.rs          # Phase 3: module resolver
+│   │       ├── semantics.rs         # Phase 3: ty-backed semantic layer
 │   │       ├── graph.rs             # Phase 4: call graph data structures
 │   │       ├── graph_builder.rs     # Phase 4: call graph construction
 │   │       ├── annotator.rs         # Phase 5: blocking annotation
@@ -116,7 +116,7 @@ strato/                              # Monorepo root
 |------------|----------------|---------|
 | `ruff_python_parser` | Pinned ruff git rev | Python AST parsing |
 | `ruff_python_ast` | Pinned ruff git rev | Python AST types |
-| `ty_python_semantic` | Pinned ruff git rev | Type inference |
+| `ty_python_semantic` | Pinned ruff/ty git rev | Module, name, and type semantics |
 | `petgraph` | `0.6` | Call graph data structure |
 | `serde` | `1` (derive) | Serialization |
 | `bincode` | `1` | Binary cache format |
@@ -129,12 +129,12 @@ strato/                              # Monorepo root
 
 | Milestone | Name | Key Deliverable | Effort |
 |-----------|------|-----------------|--------|
-| M-1 | ty Integration Spike | Validate ty crate API at pinned rev | Small |
+| M-1 | ty Integration Spike | Validate ty crate API and semantic facts at pinned rev | Small |
 | M0 | Project Scaffolding | Compiling workspace with stub modules | Small |
 | M1 | Parser + Discovery | Parse Python files using ruff, discover project files | Medium |
-| M2 | Module Resolver | Cross-file import resolution, symbol table | Large |
+| M2 | Semantic Layer | ty-backed module/name/type facts normalized for Strato | Large |
 | M3 | Call Graph | Project-wide call graph construction | Large |
-| M4 | Blocking Database | 80+ known blocking functions with help text | Medium |
+| M4 | Blocking Database | 60 known blocking functions with help text | Medium |
 | M5 | Propagation | SCC-based blocking propagation (Tarjan's algorithm) | Medium |
 | M6 | Escape Hatches | `run_in_executor`, `to_thread`, `@unblocker` detection | Small |
 | M7 | Properties + Dunders | Implicit call detection (`@property`, `__str__`, etc.) | Medium |

@@ -108,7 +108,7 @@ WHEN is_executor_call(call) is true:
 
 ### Generalized Wrapper Registry
 
-> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry, enabling user-defined executor wrappers.
+> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: Strato v1 recognizes asyncio built-ins only. Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry and `@unblocker`, enabling user-defined executor wrappers.
 
 ```rust
 struct EscapeHatchRegistry {
@@ -139,7 +139,7 @@ vec![
 
 ### Configuration Schema
 
-Users can add custom escape hatches in `pyproject.toml`:
+In v1.1, users can add custom escape hatches in `pyproject.toml`:
 
 ```toml
 [tool.strato.executor-wrappers]
@@ -153,8 +153,8 @@ Users can add custom escape hatches in `pyproject.toml`:
 
 - **Key**: Qualified name of the wrapper function
 - **Value**: Object with `callable_param` field – integer (positional index, 0-based) or string (keyword argument name)
-- Duplicate keys are rejected (last one wins, with a warning)
+- Duplicate keys are rejected as a configuration error; Strato does not apply last-key-wins semantics
 
-**The `@unblocker` decorator** provides an alternative to configuration for first-party wrappers (see [Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
+**The `@unblocker` decorator** provides a v1.1 alternative to configuration for first-party wrappers (see [Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
 
 **Precedence**: Annotations take precedence over configuration. If a function has both `@unblocker` and a `[tool.strato.executor-wrappers]` entry, the annotation wins.

@@ -4,11 +4,11 @@
 
 ### Type System Limitations
 
-Strato's type resolution depends on the `ty` crate for inference. When `ty` cannot determine a type, the call is skipped silently per the [Precision Policy](./design-overview.md#precision-policy-unknown--not-blocking).
+Strato's semantic resolution depends on the `ty` crate for module, name, and type facts. When ty cannot provide the fact Strato needs for a call edge, the call is skipped silently per the [Precision Policy](./design-overview.md#precision-policy).
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
-| **No-annotation dynamic types** | Variables without type hints or obvious constructors (e.g., `x = get_loader()`) have unknown type. Method calls on `x` are unresolvable. | Add type hints or use `@blocking` decorator. | v1 – by design |
+| **No-annotation dynamic types** | Variables whose type cannot be inferred by ty have unknown type. Method calls on those values are unresolvable. | Add type hints or use `@blocking` decorator. | v1 – by design |
 | **Heavily metaprogrammed code** | Classes generated via metaclasses, `type()`, or `__init_subclass__` are invisible to static analysis. | Annotate generated methods with `@blocking`. | v1 – out of scope |
 | **Runtime type construction** | `type(name, bases, dict)` creates classes at runtime. Strato cannot resolve calls to methods defined this way. | Avoid runtime class construction in async contexts. | v1 – out of scope |
 | **Plugin-based systems** | Frameworks loading callables via entry points or plugin registries are invisible. | Manually annotate plugin callables with `@blocking`. | v1 – out of scope |
@@ -17,17 +17,17 @@ Strato's type resolution depends on the `ty` crate for inference. When `ty` cann
 
 ### Import System Limitations
 
-Strato's import resolver handles standard Python import forms but does not support dynamic or runtime-modified imports.
+Strato relies on ty for static import semantics under configured source roots, Python version, and stub paths. Dynamic or runtime-modified imports remain outside Strato's guarantees.
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
 | **Dynamic imports** | `importlib.import_module(name)` where `name` is computed at runtime. | Use static imports in async contexts. | v1 – unresolvable |
-| **`importlib.import_module` with literal strings** | Even `importlib.import_module("myapp.utils")` is not resolved. | Refactor to `import myapp.utils`. | v1 – not implemented |
+| **Runtime import calls even with literal strings** | Strato does not special-case `importlib.import_module("myapp.utils")` as a static import. | Refactor to `import myapp.utils`. | v1 – not implemented |
 | **`.pth` files** | `site-packages/*.pth` files modify `sys.path` at runtime. | Use explicit source roots in config. | v1 – out of scope |
 | **Import hooks** | Custom `sys.meta_path` or `sys.path_hooks` importers. | Use standard filesystem-based imports. | v1 – out of scope |
-| **Conditional imports (beyond first branch)** | `try: import A; except: import B` – Strato takes the **first branch only**. | Use a single canonical import. | v1 – best-effort |
-| **Star imports (transitive)** | `from x import *` is resolved **one level only**. Transitive star imports not followed. | Use explicit imports. | v1 – one level only |
-| **Namespace packages (PEP 420)** | Basic support within configured source roots only. External namespace packages not supported. | Add `__init__.py` to all package directories. | v1 – partial |
+| **Conditional imports** | Resolution follows ty's static semantics; Strato does not execute both runtime branches. | Use a single canonical import. | v1 – best-effort |
+| **Star imports** | Supported only when ty can statically enumerate the exported names. | Use explicit imports. | v1 – best-effort |
+| **Namespace packages (PEP 420)** | Support depends on ty and the configured source roots/stub paths. External namespace packages are not a Strato guarantee. | Add `__init__.py` or explicit source roots where possible. | v1 – partial |
 | **Circular imports** | Symbols registered before bodies walked, but runtime `ImportError` not detected. | Refactor to eliminate circular imports. | v1 – no runtime validation |
 
 ### Call Graph Limitations
@@ -49,7 +49,7 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
-| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Async Library Support](./design-overview.md#async-scope-boundary-asyncio-only)) |
+| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Async Library Support](./design-overview.md#async-library-support)) |
 | **No runtime analysis** | Cannot detect blocking calls conditionally skipped at runtime. | Use runtime profiling tools to complement. | v1 – static only |
 | **No inter-process analysis** | Blocking calls in subprocesses invisible. | Subprocess code is isolated from event loop. | v1 – out of scope |
 | **Single-project only** | Does not traverse into installed third-party packages. | Extend blocking database via config. | v1 – first-party focus |
@@ -57,19 +57,19 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 
 ### "Skip Silently" Behavior
 
-Strato follows a **high-precision policy** ([Precision Policy](./design-overview.md#precision-policy-unknown--not-blocking)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
+Strato follows a **high-precision policy** ([Precision Policy](./design-overview.md#precision-policy)): when it cannot definitively prove a call is blocking, it skips silently. This section documents every such case.
 
 | Case | Behavior | Rationale |
 |------|----------|-----------|
-| **Unresolvable callee** | `resolve_callee()` returns `None` → no call edge created | Unknown != Blocking |
-| **Unknown type → no property/dunder edge** | Type inference fails → property/dunder access not checked | Cannot determine if attribute is `@property` without type |
+| **Unresolvable callee** | Semantic layer has no callable target → no call edge created | Unknown != Blocking |
+| **Unknown semantic target → no property/dunder edge** | ty cannot resolve the property or dunder target → access not checked | Cannot prove which callable would run |
 | **External symbol not in DB** | Third-party symbol without database entry → no phantom node | Only known-blocking third-party functions tracked |
 | **Unresolvable import** | Dynamic import, missing `__init__.py` → no binding | Cannot analyze what doesn't exist on filesystem |
 | **Star import with parse error** | Target module unparseable → no bindings from star import | Cannot enumerate symbols without parsing |
 | **Decorator replacing function** | Original function analyzed, not wrapper | Decorators not executed statically |
 | **Callback parameter invoked** | `callback()` inside function → unresolvable | Higher-order requires interprocedural analysis |
-| **Conditional import (non-first branch)** | Only first branch analyzed | Best-effort: most likely branch |
-| **Transitive star import** | `from x import *` where `x` has `from y import *` → `y`'s symbols invisible | One level only – prevents infinite recursion |
+| **Conditional import branch not resolved by ty** | Binding unavailable to Strato | Best-effort static semantics |
+| **Star import not statically enumerable** | Exported names unavailable to Strato | Avoid guessing imported names |
 | **Monkey-patched method** | Original method analyzed, not patched replacement | Runtime reassignments invisible to static analysis |
 | **`eval()` / `exec()` / `getattr()`** | String-based execution/access invisible | Cannot statically analyze runtime-constructed code |
 

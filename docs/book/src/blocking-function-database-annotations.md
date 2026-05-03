@@ -35,15 +35,15 @@ enum EntrySource {
 
 ### Built-In Entries
 
-> **Decision recap ([Blocking Database](./design-overview.md#blocking-database-curated-list-vs-exhaustive))**: Strato ships a curated database of ~80 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
+> **Decision recap ([Blocking Database](./design-overview.md#blocking-database-curated-list-vs-exhaustive))**: Strato ships a curated database of 60 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
 
-Strato ships with 80+ built-in blocking function entries across six categories. The complete database is provided in [Appendix A](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete). Representative examples by category:
+Strato ships with 60 built-in blocking function entries across six categories. The complete database is provided in [Appendix A](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete). Representative examples by category:
 
 | Category | Count | Examples |
 |----------|-------|----------|
 | **Sleep** | 1 | `time.sleep` |
 | **Network I/O** | 27 | `requests.get`, `requests.post`, `urllib.request.urlopen`, `socket.socket.connect`, `http.client.HTTPConnection.request` |
-| **File I/O** | 23 | `builtins.open`, `os.read`, `os.write`, `pathlib.Path.read_text`, `glob.glob`, `shutil.copy` |
+| **File I/O** | 20 | `builtins.open`, `os.read`, `os.write`, `pathlib.Path.read_text`, `glob.glob`, `shutil.copy` |
 | **Subprocess** | 8 | `subprocess.run`, `subprocess.call`, `subprocess.Popen.wait`, `os.system` |
 | **Database** | 3 | `psycopg2.connect`, `sqlite3.connect`, `pymysql.connect` |
 | **User Input** | 1 | `builtins.input` |
@@ -97,6 +97,19 @@ blocking_modules = [
 ### Annotations API (@blocking, @non_blocking, @unblocker)
 
 The `strato` Python package provides three decorators for annotating function blocking behavior. The package has zero dependencies and zero runtime impact – decorators are transparent wrappers.
+
+Annotation semantics are explicit and local:
+
+- `@blocking` marks the decorated function as a blocking root, regardless of whether its body contains a built-in database call.
+- `@non_blocking` marks only the decorated function as safe. It suppresses propagated blocking for that function but does not mark its callees safe, does not remove database entries, and does not shield other functions in the same SCC.
+- `@unblocker` marks the decorated function as an executor wrapper. Calls to that wrapper protect only the configured callable argument by creating `in_executor=true` synthetic edges.
+- If conflicting annotations are present on the same resolved function, `@non_blocking` wins because it is the explicit false-positive override.
+
+**Pitfalls:**
+
+- `@non_blocking` is a local override for the decorated function only; using it to silence a real blocker hides bugs rather than fixing them.
+- `@unblocker` should only be used for wrappers that actually offload work; annotating an ordinary sync helper as an executor wrapper will suppress real findings.
+- `@blocking` should be reserved for functions that are semantically blocking roots, not just functions that are slow for unrelated reasons.
 
 #### Decorator Definitions
 
@@ -186,7 +199,7 @@ def unblocker(func: F = None, *, callable_param: int | str = 0) -> F | Callable[
     return decorator
 ```
 
-> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: The `@unblocker` decorator is a v1.1 addition enabling user-defined executor wrappers. It generalizes the hardcoded `run_in_executor`/`to_thread` patterns.
+> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: The `@unblocker` decorator is a v1.1 addition enabling user-defined executor wrappers. Strato v1 recognizes asyncio built-ins; v1.1 adds generalized first-party wrapper annotations and configured wrappers.
 
 #### Annotation Detection Algorithm
 
@@ -247,7 +260,7 @@ Strato supports `.pyi` stub files for annotating third-party libraries without m
 
 When a function has multiple sources of blocking information:
 
-1. `@non_blocking` annotation (highest – explicit override)
+1. `@non_blocking` annotation (highest – explicit local override for that function)
 2. `@blocking` annotation
 3. User configuration (`[tool.strato.blocking]`)
 4. Built-in database entry (lowest)

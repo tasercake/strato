@@ -136,7 +136,7 @@ async def handler():
 
 **Expected:**
 - 0 diagnostics
-- `@non_blocking` decorator overrides blocking detection
+- `@non_blocking` decorator overrides blocking detection for `actually_safe` only
 
 ---
 
@@ -292,6 +292,8 @@ async def unsafe_caller():
 
 ### A14: @unblocker Basic
 
+This is a v1.1 acceptance case for generalized first-party wrappers.
+
 **Code:**
 
 ```python
@@ -318,11 +320,13 @@ async def unsafe_handler():
 
 ### A15: Executor Wrapper Config
 
+This is a v1.1 acceptance case for generalized configured wrappers.
+
 **pyproject.toml:**
 
 ```toml
 [tool.strato.executor-wrappers]
-"mylib.offload" = true
+"mylib.offload" = { callable_param = 0 }
 ```
 
 **Code:**
@@ -341,7 +345,166 @@ async def handler():
 
 ---
 
-### A16: Star Import
+### A16: Intermediate Property Edge Classifies as STRATO003
+
+**Code:**
+
+```python
+import requests
+
+class DataFetcher:
+    @property
+    def data(self):
+        return load_remote()
+
+def load_remote():
+    return requests.get("https://api.example.com/data").json()
+
+def helper(fetcher):
+    return fetcher.data
+
+async def handler():
+    fetcher = DataFetcher()
+    helper(fetcher)
+```
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO003
+- Classification is based on the intermediate `PropertyAccess` edge, not the final `requests.get` edge
+
+---
+
+### A17: Intermediate Dunder Edge Classifies as STRATO004
+
+**Code:**
+
+```python
+import requests
+
+class RemoteObject:
+    def __str__(self):
+        return load_remote()
+
+def load_remote():
+    return requests.get("https://api.example.com/status").text
+
+def helper(obj):
+    return str(obj)
+
+async def handler():
+    obj = RemoteObject()
+    helper(obj)
+```
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO004
+- Classification is based on the intermediate `ImplicitDunder` edge, not the final `requests.get` edge
+
+---
+
+### A18: `@non_blocking` Does Not Shield SCC Peers
+
+**Code:**
+
+```python
+import time
+from strato import non_blocking
+
+@non_blocking
+def safe_entry(flag):
+    if flag:
+        unsafe_peer()
+
+def unsafe_peer():
+    safe_entry(False)
+    time.sleep(1)
+
+async def safe_handler():
+    safe_entry(True)
+
+async def unsafe_handler():
+    unsafe_peer()
+```
+
+**Expected:**
+- 1 diagnostic
+- Only `unsafe_handler` is flagged
+- `safe_entry` remains non-blocking, but its annotation does not erase the blocking fact for `unsafe_peer` in the same SCC
+
+---
+
+### A19: Alias-Based Wrapper Path is Safe
+
+This is a v1.1 acceptance case for generalized configured wrappers.
+
+**pyproject.toml:**
+
+```toml
+[tool.strato.executor-wrappers]
+"mylib.offload" = { callable_param = 0 }
+```
+
+**Code:**
+
+```python
+import time
+from mylib import offload as run_safe
+
+async def handler():
+    run_safe(time.sleep, 1)
+```
+
+**Expected:**
+- 0 diagnostics
+- Import alias resolution preserves the configured wrapper semantics
+
+---
+
+### A20: Deterministic Diagnostic Ordering Regression
+
+**Code:**
+
+```python
+import time
+
+async def handler_b():
+    time.sleep(1)
+
+async def handler_a():
+    time.sleep(1)
+```
+
+**Expected:**
+- 2 diagnostics
+- Repeated runs produce byte-for-byte identical output
+- Diagnostics are ordered deterministically by file, line, column, and error code
+
+---
+
+### A21: Fresh and Cached Analysis Parity
+
+**Code:**
+
+```python
+import time
+
+def helper():
+    time.sleep(1)
+
+async def handler():
+    helper()
+```
+
+**Expected:**
+- Fresh analysis emits 1 diagnostic with error code STRATO002
+- Cached analysis emits the same diagnostic with identical location, chain, and output ordering
+- Cache state never changes diagnostic classification or suppression semantics
+
+---
+
+### A22: Star Import
 
 **module_a.py:**
 
@@ -368,7 +531,7 @@ async def handler():
 
 ---
 
-### A17: Namespace Package
+### A23: Namespace Package
 
 **Directory structure:**
 
@@ -403,7 +566,7 @@ async def handler():
 
 ---
 
-### A18: Related Locations
+### A24: Related Locations
 
 **Code:**
 
@@ -425,7 +588,7 @@ async def handler():
     {
       "code": "STRATO002",
       "message": "Async function 'handler' calls blocking function 'helper'",
-      "location": {
+      "primary_location": {
         "file": "example.py",
         "line": 7,
         "column": 5
@@ -451,7 +614,7 @@ async def handler():
 
 ---
 
-### A19: Parse Warnings
+### A25: Parse Warnings
 
 **valid.py:**
 
