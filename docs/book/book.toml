@@ -16,7 +16,10 @@ smart-punctuation = true
 git-repository-url = "https://github.com/tasercake/strato"
 no-section-label = true
 additional-css = ["theme/page-toc.css", "theme/highlight.css"]
-additional-js = ["theme/page-toc.js"]
+additional-js = ["theme/page-toc.js", "theme/mermaid.min.js", "theme/mermaid-init.js"]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
 
 [output.html.search]
 enable = true

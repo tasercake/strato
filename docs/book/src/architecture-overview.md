@@ -2,75 +2,17 @@
 
 ### System Diagram
 
-```
-                              pyproject.toml
-                                    |
-                                    v
-                          +-------------------+
-                          |   1. DISCOVERY     |
-                          |  Find Python files |
-                          |  Load config       |
-                          +--------+----------+
-                                   |
-                    File paths + config
-                                   |
-                                   v
-                          +-------------------+
-                          |   2. PARSE         |  <-- ruff_python_parser
-                          | Parse all files    |      (parallelized)
-                          | Build per-file AST |
-                          +--------+----------+
-                                   |
-                        Per-file ASTs
-                                   |
-                                   v
-                          +-------------------+
-                          |   3. SEMANTICS     |
-                          | Initialize ty      |
-                          | semantic context   |
-                          | Extract facts      |
-                          +--------+----------+
-                                   |
-                      Semantic facts + ASTs
-                                   |
-                                   v
-                          +-------------------+
-                          |   4. BUILD         |
-                          | Construct project- |
-                          | wide call graph    |
-                          +--------+----------+
-                                   |
-                           Call graph
-                                   |
-                                   v
-                          +-------------------+
-                          |   5. ANNOTATE      |
-                          | Mark known         |
-                          | blocking functions |
-                          | from DB + @blocking|
-                          +--------+----------+
-                                   |
-                     Annotated call graph
-                                   |
-                                   v
-                          +-------------------+
-                          |   6. PROPAGATE     |
-                          | SCC decomposition  |
-                          | + topological      |
-                          | blocking spread    |
-                          +--------+----------+
-                                   |
-                  Fully propagated graph
-                                   |
-                                   v
-                          +-------------------+
-                          |   7. REPORT        |
-                          | Find async->block  |
-                          | paths. Format      |
-                          | diagnostics.       |
-                          +-------------------+
-                                   |
-                    Text / JSON / SARIF output
+```mermaid
+flowchart TD
+    A[pyproject.toml] --> B[1. Discovery<br/>Find Python files<br/>Load config]
+    B -->|File paths + config| C[2. Parse<br/>Parse all files<br/>Build per-file AST]
+    C -.->|ruff_python_parser<br/>parallelized| C
+    C -->|Per-file ASTs| D[3. Semantics<br/>Initialize ty semantic context<br/>Extract facts]
+    D -->|Semantic facts + ASTs| E[4. Build<br/>Construct project-wide call graph]
+    E -->|Call graph| F[5. Annotate<br/>Mark known blocking functions<br/>from DB + @blocking]
+    F -->|Annotated call graph| G[6. Propagate<br/>SCC decomposition<br/>+ topological blocking spread]
+    G -->|Fully propagated graph| H[7. Report<br/>Find async->block paths<br/>Format diagnostics]
+    H --> I[Text / JSON / SARIF output]
 ```
 
 ### Component Map
