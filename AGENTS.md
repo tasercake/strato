@@ -1,26 +1,8 @@
 # Strato Agent Notes
 
-## Current State
-- This repository is a Rust workspace. `README.md` says nothing is implemented; trust `Cargo.toml`, code, and tests over that line.
-- Workspace crates: `crates/strato_cli` exposes the `strato` binary, `crates/strato_core` holds analyzer scaffolding and fixture loading, and `crates/strato_cache` provides deterministic SHA-256 helpers.
-- The CLI is scaffolded only: `cargo run -p strato_cli -- check <path> --output json` prints a not-implemented message. Use `--output`; some docs show non-working `--format` examples.
-- `python/strato` is a tiny annotation package stub (`blocking`, `non_blocking`, `unblocker`) with no packaging manifest.
-- The design keeps annotation decorators and the analyzer binary separate: `strato` is the pure Python annotation package, and `strato-cli` is the Rust binary package.
-- `.analysis/` contains local Ruff/ty source snapshots for research; it is not part of the root Cargo workspace. Avoid broad searches or edits there unless the task is specifically about that vendored/reference code.
-- Ignore local artifacts such as `target/`, `.vercel/`, and `.ruff_cache/` unless the task is specifically about build output or tool caches.
-
-## Commands
-- Rust toolchain is pinned in `rust-toolchain.toml` to `1.92.0` with `clippy` and `rustfmt`.
-- Format: `cargo fmt --check`.
-- Lint: `cargo clippy --workspace --all-targets`.
-- Test all active Rust tests: `cargo test`.
-- Focused fixture-loader test: `cargo test -p strato_core acceptance_fixtures_are_well_formed`.
-
 ## Acceptance Fixtures
-- Production-style fixture cases live in `tests/fixtures/a01_*` through `a39_*`; each fixture has one or more `.py` files plus `expected.json`.
-- The fixture loader sorts fixture directories and source paths for deterministic tests; preserve this when changing loader behavior.
+- Production-style fixture cases live in `tests/fixtures/a01_*` through `a39_*`; each fixture has one `.py` file plus `expected.json`.
 - Some fixtures include local `pyproject.toml` with `[tool.strato.executor-wrappers]`; keep fixture config paths relative to the fixture root.
-- Expected diagnostics use stable codes: `STRATO001` direct blocking, `STRATO002` transitive blocking, `STRATO003` blocking property access, `STRATO004` blocking dunder invocation.
 
 ## Design Constraints
 - Core value is transitive call-graph analysis, not direct pattern matching alone.
