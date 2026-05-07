@@ -206,14 +206,6 @@
         "intervention_strategy": "first-party-deepest"
       }
     ],
-    "warnings": [],
-    "stats": {
-      "files_analyzed": 1,
-      "functions_analyzed": 13,
-      "call_graph_nodes": 14,
-      "call_graph_edges": 12,
-      "blocking_functions_found": 1,
-      "analysis_time_ms": 0
-    }
+    "warnings": []
   }
 }

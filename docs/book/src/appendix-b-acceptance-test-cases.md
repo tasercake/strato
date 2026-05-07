@@ -11,7 +11,7 @@ Each executable fixture directory contains a `fixture.toml` manifest plus a sing
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
 - expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 
-Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, `warnings`, and `stats`; semantic fixtures should not assert exact message text or stats unless that is their explicit purpose. `source_files` is the source of truth for body analysis; `.py` helper files that exist only to make imports resolvable must be listed in `extra_files`, not silently analyzed.
+Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, and `warnings`; semantic fixtures should not assert exact message text unless that is their explicit purpose. `source_files` is the source of truth for body analysis; `.py` helper files that exist only to make imports resolvable must be listed in `extra_files`, not silently analyzed.
 
 ### A1: Direct Blocking in Async (STRATO001)
 
@@ -329,7 +329,7 @@ async def unsafe_handler():
 - 1 diagnostic
 - Only `unsafe_handler` flagged
 - `my_offload` is recognized as executor wrapper via `@unblocker`
-- This fixture also asserts stats to protect lambda executor graph accounting: the protected lambda and its `in_executor=true` edge are graph facts even though they do not propagate a diagnostic
+- The protected lambda and its `in_executor=true` edge must not propagate a diagnostic
 
 ---
 
@@ -638,8 +638,7 @@ This fixture intentionally uses `full_json` because related-location shape and o
       "intervention_strategy": "first-party-deepest"
     }
   ],
-  "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 3, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  "warnings": []
 }
 ```
 

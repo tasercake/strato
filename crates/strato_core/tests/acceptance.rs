@@ -94,12 +94,9 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
         let actual = actual_run.json;
         if expected.mode == "full_json" {
             assert_eq!(
-                normalize_for_golden(&actual),
-                normalize_for_golden(&expected.output),
+                actual, expected.output,
                 "{}: {} ({})",
-                fixture.id,
-                fixture.name,
-                run.name
+                fixture.id, fixture.name, run.name
             );
         } else {
             for section in &expected.assert_sections {
@@ -193,45 +190,27 @@ fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     }
 }
 
-fn normalize_for_golden(value: &Value) -> Value {
-    let mut normalized = value.clone();
-    if let Some(stats) = normalized.get_mut("stats").and_then(Value::as_object_mut)
-        && stats.contains_key("analysis_time_ms")
-    {
-        assert!(
-            stats["analysis_time_ms"].is_u64(),
-            "stats.analysis_time_ms must be an integer before normalization"
-        );
-        stats.insert("analysis_time_ms".to_string(), Value::from(0));
-    }
-    normalized
-}
-
 fn normalize_partial_section(section: &str, value: &Value) -> Value {
     let mut normalized = value.clone();
-    if section == "diagnostics" {
-        if let Some(diagnostics) = normalized.as_array_mut() {
-            for diagnostic in diagnostics {
-                if let Some(object) = diagnostic.as_object_mut() {
-                    object.remove("message");
-                    object.remove("help");
-                    if let Some(related_locations) = object
-                        .get_mut("related_locations")
-                        .and_then(Value::as_array_mut)
-                    {
-                        for related_location in related_locations {
-                            if let Some(related_object) = related_location.as_object_mut() {
-                                related_object.remove("message");
-                            }
+    if section == "diagnostics"
+        && let Some(diagnostics) = normalized.as_array_mut()
+    {
+        for diagnostic in diagnostics {
+            if let Some(object) = diagnostic.as_object_mut() {
+                object.remove("message");
+                object.remove("help");
+                if let Some(related_locations) = object
+                    .get_mut("related_locations")
+                    .and_then(Value::as_array_mut)
+                {
+                    for related_location in related_locations {
+                        if let Some(related_object) = related_location.as_object_mut() {
+                            related_object.remove("message");
                         }
                     }
                 }
             }
         }
-    } else if section == "stats"
-        && let Some(stats) = normalized.as_object_mut()
-    {
-        stats.insert("analysis_time_ms".to_string(), Value::from(0));
     }
     normalized
 }

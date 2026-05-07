@@ -328,10 +328,7 @@ fn validate_expected_metadata(
     )?;
     for section in &expected.assert_sections {
         invalid_if(
-            !matches!(
-                section.as_str(),
-                "version" | "diagnostics" | "warnings" | "stats"
-            ),
+            !matches!(section.as_str(), "version" | "diagnostics" | "warnings"),
             fixture,
             format!("expected.json asserts unknown JSON section '{section}'"),
         )?;
@@ -482,12 +479,6 @@ fn validate_expected_json(
         fixture,
         "expected JSON must contain array field 'warnings'".to_string(),
     )?;
-    invalid_if(
-        !expected["stats"].is_object(),
-        fixture,
-        "expected JSON must contain object field 'stats'".to_string(),
-    )?;
-    validate_stats(fixture, &expected["stats"])?;
 
     let source_lines = load_source_lines(root, sources)?;
     for diagnostic in diagnostics {
@@ -495,24 +486,6 @@ fn validate_expected_json(
     }
     for warning in expected["warnings"].as_array().expect("validated above") {
         validate_warning(fixture, &source_lines, warning)?;
-    }
-    Ok(())
-}
-
-fn validate_stats(fixture: &str, stats: &Value) -> Result<(), FixtureError> {
-    for field in [
-        "files_analyzed",
-        "functions_analyzed",
-        "call_graph_nodes",
-        "call_graph_edges",
-        "blocking_functions_found",
-        "analysis_time_ms",
-    ] {
-        invalid_if(
-            !stats[field].is_u64(),
-            fixture,
-            format!("stats must contain integer field '{field}'"),
-        )?;
     }
     Ok(())
 }
@@ -882,15 +855,7 @@ mod tests {
                 ],
                 "intervention_strategy": "first-party-deepest"
             }],
-            "warnings": [],
-            "stats": {
-                "files_analyzed": 1,
-                "functions_analyzed": 1,
-                "call_graph_nodes": 2,
-                "call_graph_edges": 1,
-                "blocking_functions_found": 1,
-                "analysis_time_ms": 0
-            }
+            "warnings": []
         })
     }
 
@@ -924,20 +889,17 @@ mod tests {
     }
 
     #[test]
-    fn expected_json_requires_integer_stats() {
+    fn expected_json_accepts_current_top_level_shape() {
         let (_temp, root) = temp_fixture();
-        let mut expected = valid_expected();
-        expected["stats"]["analysis_time_ms"] = Value::String("fast".to_string());
 
-        let err = validate_expected_json(
+        validate_expected_json(
             &root,
             &[Utf8PathBuf::from("main.py")],
             "fixture",
-            &expected,
+            &valid_expected(),
             true,
         )
-        .expect_err("string stats should fail");
-        assert!(err.to_string().contains("analysis_time_ms"));
+        .expect("current top-level shape should validate");
     }
 
     #[test]

@@ -85,19 +85,6 @@ pub struct Config {
 pub struct AnalysisResult {
     pub diagnostics: Vec<Diagnostic>,    // Sorted per deterministic output rules
     pub warnings: Vec<AnalysisWarning>,  // Recoverable per-file/config-boundary warnings
-    pub stats: AnalysisStats,
-}
-
-/// Analysis statistics for --stats output.
-pub struct AnalysisStats {
-    pub files_analyzed: usize,
-    pub functions_analyzed: usize,
-    pub call_graph_nodes: usize,
-    pub call_graph_edges: usize,
-    pub blocking_functions_found: usize,
-    pub analysis_time_ms: u64,
-    pub cache_hits: usize,
-    pub cache_misses: usize,
 }
 
 /// Errors that can occur during analysis.
@@ -107,5 +94,3 @@ pub enum AnalysisError {
     NoAnalyzableSourceFiles,    // Exit code 3
 }
 ```
-
-`call_graph_nodes` includes first-party callables plus external phantom nodes that were resolved into the graph for this run; unused built-in database entries are not counted as analysis graph nodes. `call_graph_edges` includes synthetic executor-wrapper edges marked `in_executor=true`; those edges are graph facts even though they do not propagate blocking. `blocking_functions_found` counts unique resolved blocking roots even when all paths to them are executor-protected.

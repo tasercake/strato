@@ -40,14 +40,6 @@
         "message": "Syntax error in invalid.py",
         "file": "invalid.py"
       }
-    ],
-    "stats": {
-      "files_analyzed": 1,
-      "functions_analyzed": 1,
-      "call_graph_nodes": 2,
-      "call_graph_edges": 1,
-      "blocking_functions_found": 1,
-      "analysis_time_ms": 0
-    }
+    ]
   }
 }

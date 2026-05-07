@@ -41,8 +41,6 @@ OPTIONS:
   --python-version <VER>     Override Python version.
                               Values: 3.7, 3.8, ..., 3.15
 
-  --stats                    Show analysis statistics after run.
-
   -q, --quiet                Suppress non-diagnostic output.
   -v, --verbose              Show detailed analysis progress.
   --help                     Show help message.
@@ -87,8 +85,6 @@ strato check src/ --intervention-strategy async-boundary
 # Fresh analysis (ignore cache)
 strato check src/ --no-cache
 
-# Show stats
-strato check src/ --stats
 ```
 
 ### Configuration Loading

@@ -85,23 +85,13 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
       "message": "string",
       "file": "string (optional)"
     }
-  ],
-  "stats": {
-    "files_analyzed": "integer",
-    "functions_analyzed": "integer",
-    "call_graph_nodes": "integer",
-    "call_graph_edges": "integer",
-    "blocking_functions_found": "integer",
-    "analysis_time_ms": "integer"
-  }
+  ]
 }
 ```
 
-**Required Fields:** `version`, `diagnostics`, `warnings`, and `stats` are always present. Within each diagnostic: `code`, `severity`, `message`, `primary_location`, and `intervention_strategy` are required. `related_locations`, `chain`, and `help` are optional. Full-JSON fixture comparisons cover every JSON field except volatile timing fields such as `stats.analysis_time_ms`, which are type-checked and normalized before comparison.
+**Required Fields:** `version`, `diagnostics`, and `warnings` are always present. Within each diagnostic: `code`, `severity`, `message`, `primary_location`, and `intervention_strategy` are required. `related_locations`, `chain`, and `help` are optional. Full-JSON fixture comparisons cover every JSON field.
 
 `chain.function` is a stable diagnostic display label, not the internal node key. It may omit the top-level `main.` module prefix for readability, while retaining module or class qualifiers when needed to disambiguate cross-file functions, methods, properties, and dunders.
-
-`stats.call_graph_nodes` counts first-party callable nodes plus external phantom nodes that are actually resolved into the graph for this run. It does not count unused built-in database entries. `stats.call_graph_edges` counts semantic call-graph edges, including synthetic `in_executor=true` edges created for executor wrappers. `blocking_functions_found` counts unique resolved blocking roots discovered in the graph even when every path to them is protected by an executor edge. Tests that only care about diagnostics should not assert stats; stats have separate output-contract coverage.
 
 **Example (A2 Test Case):**
 
@@ -167,15 +157,7 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
       "intervention_strategy": "first-party-deepest"
     }
   ],
-  "warnings": [],
-  "stats": {
-    "files_analyzed": 1,
-    "functions_analyzed": 2,
-    "call_graph_nodes": 3,
-    "call_graph_edges": 2,
-    "blocking_functions_found": 1,
-    "analysis_time_ms": 15
-  }
+  "warnings": []
 }
 ```
 

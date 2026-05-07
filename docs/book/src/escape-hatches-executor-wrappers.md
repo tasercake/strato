@@ -97,7 +97,7 @@ After the executor wrapper has handled the callable argument, normal AST travers
 
 **Key invariant**: The synthetic edge ensures that `time.sleep` (a phantom node with `KnownBlocking`) is connected to the calling function but with `in_executor=true`, so blocking status does NOT propagate backward through this edge.
 
-Synthetic executor edges are still counted as call-graph edges in analysis stats, and resolved blocking roots behind those edges are still counted as blocking functions found. The suppression rule affects propagation and diagnostics only; it does not erase graph facts.
+The suppression rule affects propagation and diagnostics only; it does not erase graph facts.
 
 **Executor scope rule**: Only the CALLABLE ARGUMENT position gets `in_executor=true` protection. In `loop.run_in_executor(executor, func, arg1, arg2)`: arg[0] (executor) is NOT protected, arg[1] (func) IS protected, arg[2..] (data arguments) are NOT protected.
 
