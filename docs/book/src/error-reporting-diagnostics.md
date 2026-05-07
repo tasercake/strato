@@ -1,6 +1,6 @@
 # Error Reporting & Diagnostics
 
-> **Decision recap:** [Error Reporting](./design-overview.md#intervention-strategy-for-error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Determinism Contract](./design-overview.md#determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
+> **Decision recap:** [Error Reporting](./design-overview.md#error-reporting) established the intervention point strategy (first-party-deepest vs async-boundary) to guide users to the most actionable fix location. [Determinism Contract](./design-overview.md#determinism-contract) mandates deterministic output ordering for test stability and reproducible CI runs.
 
 [async] [tooling]
 
@@ -10,12 +10,14 @@ Strato emits four error codes, each corresponding to a distinct pattern of block
 
 | Code | Meaning | Severity | Trigger Condition |
 |------|---------|----------|-------------------|
-| `STRATO001` | Direct blocking call in async function | Error | Async function directly calls a blocking function with no intermediary sync functions |
-| `STRATO002` | Indirect blocking call via sync intermediary | Error | Async function calls sync function(s) that transitively reach a blocking function |
+| `STRATO001` | Direct blocking call in async function | Error | Async function directly calls a blocking function with no intermediary call edges |
+| `STRATO002` | Transitive blocking call reachable from async context | Error | Async function reaches a blocking function through one or more non-special call edges |
 | `STRATO003` | Blocking `@property` accessed in async context | Error | Property getter (decorated with `@property`) is accessed and transitively blocks |
 | `STRATO004` | Blocking dunder method invoked in async context | Error | Implicit dunder method call (e.g., `str(obj)`, `x + y`) transitively blocks |
 
 #### Message Templates
+
+The templates below are the product contract for rendered text and full-output JSON tests. Most semantic fixtures assert structured fields (`code`, `primary_location`, `chain`, `warnings`) instead of exact message strings so wording changes do not break unrelated analyzer coverage.
 
 **STRATO001:**
 ```
@@ -32,7 +34,7 @@ STRATO001: Direct blocking call in async function
 
 **STRATO002:**
 ```
-STRATO002: Blocking call reachable from async context
+STRATO002: Transitive blocking call reachable from async context
 
   --> {file}:{line}:{column}
    |
@@ -112,7 +114,7 @@ fn classify_error_code(chain: &BlockingReason, graph: &CallGraph) -> ErrorCode {
         return ErrorCode::STRATO001;  // Direct blocking call in async function
     }
 
-    // Otherwise: there are intermediary sync functions between async and blocker
+    // Otherwise: blocking is reached transitively through ordinary call edges
     ErrorCode::STRATO002
 }
 ```
@@ -140,7 +142,7 @@ The "intervention point" is the primary location shown in the diagnostic – the
 
 #### Strategy: `first-party-deepest` (Default)
 
-Select the **deepest function in first-party code** on the call chain between the async context and the blocking call. This points users to the lowest-level first-party function that could be refactored to be async.
+Select the **deepest first-party call site** on the call chain between the async context and the blocking call. This points users to the lowest-level first-party expression that could be refactored to be async or offloaded.
 
 ```rust
 fn select_intervention_point(
@@ -150,7 +152,7 @@ fn select_intervention_point(
     match strategy {
         InterventionStrategy::FirstPartyDeepest => {
             // Walk the chain from the blocking end toward the async end
-            // Find the deepest first-party function
+            // Find the deepest first-party call site
             for link in chain.iter().rev() {
                 if link.is_first_party {
                     return link;
@@ -201,9 +203,9 @@ def check_db(data):                   # [3] sync, first-party
     psycopg2.connect(...)             # [4] sync, third-party, BLOCKING
 ```
 
-**`first-party-deepest`** reports at `check_db()` in `db.py`:
+**`first-party-deepest`** reports at the `psycopg2.connect(...)` call site inside first-party `check_db()` in `db.py`:
 ```
-STRATO002: Blocking call reachable from async context
+STRATO002: Transitive blocking call reachable from async context
 
   --> src/myapp/db.py:15:5
    |
@@ -216,7 +218,7 @@ STRATO002: Blocking call reachable from async context
 
 **`async-boundary`** reports at `process()` calling `validate()`:
 ```
-STRATO002: Blocking call reachable from async context
+STRATO002: Transitive blocking call reachable from async context
 
   --> src/myapp/processor.py:8:5
    |
@@ -228,6 +230,10 @@ STRATO002: Blocking call reachable from async context
 ```
 
 #### Tie-Breaking Rules
+
+`first-party-deepest` is the default strategy. Fixtures that expect `async-boundary` behavior must set it explicitly through their fixture manifest/config; expected JSON must not silently assume a non-default strategy.
+
+For `STRATO003` and `STRATO004`, the primary location is the first property or implicit-dunder edge that introduces the special semantic behavior. This keeps property and dunder diagnostics pointed at the expression the async function actually evaluates, while the chain still records deeper first-party calls underneath that edge.
 
 When the `first-party-deepest` strategy finds **multiple first-party functions at the same depth**, select the one with the lexicographically smallest `qualified_name`. If still tied (same function called from multiple sites), select the call site with the smallest `(line, column)` pair.
 
@@ -325,9 +331,11 @@ Related locations provide additional context for diagnostics. They are attached 
 | Error Code | Related Locations Attached | Purpose |
 |------------|---------------------------|---------|
 | `STRATO001` | 1. Async function definition<br>2. Blocking root definition (if available) | Show where the async context starts and the blocking root |
-| `STRATO002` | 1. Async function definition<br>2. All intermediary sync function definitions<br>3. Blocking root definition (if available) | Show full call chain |
+| `STRATO002` | 1. Async function definition<br>2. All intermediary first-party function definitions<br>3. Blocking root definition (if available) | Show full call chain |
 | `STRATO003` | 1. Async function definition<br>2. Property definition<br>3. Blocking root definition (if available) | Show property and blocking root |
 | `STRATO004` | 1. Async function definition<br>2. Dunder method definition<br>3. Blocking root definition (if available) | Show dunder method and blocking root |
+
+Related locations are deterministic. Locations are emitted in the role order shown above; multiple locations with the same role are sorted by normalized file path, line, then column.
 
 #### Example: STRATO002 with Related Locations
 
@@ -347,7 +355,7 @@ def validate():                       # Related location 3 (intervention point)
 
 **Text output:**
 ```
-STRATO002: Blocking call reachable from async context
+STRATO002: Transitive blocking call reachable from async context
 
   --> src/myapp/validator.py:8:5
    |
@@ -431,12 +439,12 @@ Strato supports three output formats:
 | **JSON** | Programmatic consumption, IDE integration | Tools parsing Strato output |
 | **SARIF** | GitHub Code Scanning, IDE integration | Security/quality platforms |
 
-Format is controlled by the `--format` CLI flag:
+Format is controlled by the `--output` CLI flag:
 
 ```bash
-strato check --format=text    # Default
-strato check --format=json
-strato check --format=sarif
+strato check . --output text    # Default
+strato check . --output json
+strato check . --output sarif
 ```
 
 Full specifications for each output format are provided in [Appendix C: Output Format Specifications](./appendix-c-output-format-specifications.md#appendix-c-output-format-specifications).

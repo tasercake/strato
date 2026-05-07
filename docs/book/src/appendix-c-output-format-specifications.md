@@ -23,7 +23,7 @@ All emitted source coordinates use 1-indexed lines and 1-indexed columns. Column
 **Example (A2 Test Case):**
 
 ```
-STRATO002: Async function 'handler' calls blocking function 'helper'
+STRATO002: Transitive blocking call reachable from async context
 
   --> example.py:7:5
    |
@@ -97,7 +97,9 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
 }
 ```
 
-**Required Fields:** `version`, `diagnostics`, `stats` always present. Within each diagnostic: `code`, `severity`, `message`, `primary_location` required. `related_locations`, `chain`, `help` optional.
+**Required Fields:** `version`, `diagnostics`, `warnings`, and `stats` are always present. Within each diagnostic: `code`, `severity`, `message`, and `primary_location` are required. `related_locations`, `chain`, and `help` are optional.
+
+`stats.call_graph_edges` counts semantic call-graph edges, including synthetic `in_executor=true` edges created for executor wrappers. `blocking_functions_found` counts resolved blocking roots discovered in the graph even when every path to them is protected by an executor edge. Tests that only care about diagnostics should not assert stats; stats have separate output-contract coverage.
 
 **Example (A2 Test Case):**
 
@@ -108,7 +110,7 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
     {
       "code": "STRATO002",
       "severity": "error",
-      "message": "Async function 'handler' calls blocking function 'helper'",
+      "message": "Transitive blocking call reachable from async context",
       "primary_location": {
         "file": "example.py",
         "line": 7,
@@ -169,7 +171,7 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
 }
 ```
 
-**Ordering:** `diagnostics` sorted by `primary_location.file`, `primary_location.line`, `primary_location.column`, then `code`. `chain` ordered from async entry to blocking call. Phantom node locations serialize as `null`.
+**Ordering:** `diagnostics` sorted by `primary_location.file`, `primary_location.line`, `primary_location.column`, then `code`. `related_locations` are ordered by their role in the diagnostic rule, then by file, line, and column within the same role. `chain` ordered from async entry to blocking call. Phantom node locations serialize as `null`.
 
 ### SARIF v2.1.0 Format
 
@@ -207,8 +209,8 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
             },
             {
               "id": "STRATO002",
-              "name": "IndirectBlockingInAsync",
-              "shortDescription": { "text": "Blocking call reachable from async context via sync intermediary" }
+              "name": "TransitiveBlockingInAsync",
+              "shortDescription": { "text": "Transitive blocking call reachable from async context" }
             },
             {
               "id": "STRATO003",
@@ -227,7 +229,7 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
         {
           "ruleId": "STRATO002",
           "level": "error",
-          "message": { "text": "Async function 'handler' calls blocking function 'helper'" },
+          "message": { "text": "Transitive blocking call reachable from async context" },
           "locations": [
             {
               "physicalLocation": {

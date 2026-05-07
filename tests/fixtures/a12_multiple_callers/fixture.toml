@@ -1,0 +1,17 @@
+id = "A12"
+name = "Multiple Callers"
+source_files = ["main.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "default"
+purpose = "emits one diagnostic per async caller reaching the same blocking helper"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

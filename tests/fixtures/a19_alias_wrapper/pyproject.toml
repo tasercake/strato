@@ -1,0 +1,2 @@
+[tool.strato.executor-wrappers]
+"mylib.offload" = { callable_param = 0 }

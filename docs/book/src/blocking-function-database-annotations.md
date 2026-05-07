@@ -6,7 +6,7 @@ The blocking database is a registry of functions known to block the event loop. 
 
 ```rust
 struct BlockingDatabase {
-    entries: HashMap<QualifiedName, BlockingEntry>,
+    entries: BTreeMap<QualifiedName, BlockingEntry>,
 }
 
 struct BlockingEntry {
@@ -35,15 +35,15 @@ enum EntrySource {
 
 ### Built-In Entries
 
-> **Decision recap ([Blocking Database](./design-overview.md#blocking-database-curated-list-vs-exhaustive))**: Strato ships a curated database of 60 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
+> **Decision recap ([Blocking Database](./design-overview.md#blocking-database))**: Strato ships a curated database of 61 entries covering the most common and impactful blocking functions, rather than attempting exhaustive coverage. User extension via config and `@blocking` decorator fills gaps.
 
-Strato ships with 60 built-in blocking function entries across six categories. The complete database is provided in [Appendix A](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete). Representative examples by category:
+Strato ships with 61 built-in blocking function entries across six categories. The complete database is provided in [Appendix A](./appendix-a-blocking-function-database.md#appendix-a-blocking-function-database-complete). Representative examples by category:
 
 | Category | Count | Examples |
 |----------|-------|----------|
 | **Sleep** | 1 | `time.sleep` |
 | **Network I/O** | 27 | `requests.get`, `requests.post`, `urllib.request.urlopen`, `socket.socket.connect`, `http.client.HTTPConnection.request` |
-| **File I/O** | 20 | `builtins.open`, `os.read`, `os.write`, `pathlib.Path.read_text`, `glob.glob`, `shutil.copy` |
+| **File I/O** | 21 | `builtins.open`, `os.read`, `os.write`, `pathlib.Path.read_text`, `glob.glob`, `shutil.copy` |
 | **Subprocess** | 8 | `subprocess.run`, `subprocess.call`, `subprocess.Popen.wait`, `os.system` |
 | **Database** | 3 | `psycopg2.connect`, `sqlite3.connect`, `pymysql.connect` |
 | **User Input** | 1 | `builtins.input` |
@@ -63,7 +63,9 @@ Strato ships with 60 built-in blocking function entries across six categories. T
 | `sqlite3.connect` | Use `aiosqlite` |
 | `builtins.input` | Use async input library or `run_in_executor` |
 
-> **Decision recap ([Help Text Policy](./design-overview.md#help-text-policy-no-third-party-recommendations))**: Help text suggests async alternatives generically, never recommending one third-party library over another. When multiple options exist, all are listed neutrally (e.g., "Use `aiohttp` or `httpx`").
+> **Decision recap ([Help Text Policy](./design-overview.md#help-text-policy))**: Help text suggests async alternatives generically, never recommending one third-party library over another. When multiple options exist, all are listed neutrally (e.g., "Use `aiohttp` or `httpx`").
+
+External calls may match through public aliases or implementation-definition names. For example, vendored typeshed defines several public `socket.socket` methods on `_socket.socket`; Strato's built-in database stores alias sets so either facade result matches the same blocking concept without counting the implementation alias as a separate built-in entry.
 
 ### User Configuration
 
@@ -92,7 +94,7 @@ blocking_modules = [
 
 - **`add`**: Extends the built-in database with project-specific blocking functions. Each entry requires `name` (qualified name), `help` (suggestion text), and `category` (one of: `sleep`, `network-io`, `file-io`, `subprocess`, `database-io`, `user-input`, `other`).
 - **`remove`**: Excludes built-in entries that are false positives for the project (e.g., monkeypatched functions).
-- **`blocking_modules`**: Treats all functions in the specified modules as blocking, without enumerating them individually.
+- **`blocking_modules`**: Treats all resolved call targets under the specified module prefixes as blocking, without enumerating them individually. Prefix matching uses module-boundary semantics.
 
 ### Annotations API (@blocking, @non_blocking, @unblocker)
 
@@ -116,7 +118,7 @@ Annotation semantics are explicit and local:
 ```python
 # strato/_annotations.py
 
-from typing import TypeVar, Callable
+from typing import Callable, Optional, TypeVar, Union, overload
 
 F = TypeVar("F", bound=Callable)
 
@@ -167,7 +169,15 @@ def non_blocking(func: F) -> F:
     return func
 
 
-def unblocker(func: F = None, *, callable_param: int | str = 0) -> F | Callable[[F], F]:
+@overload
+def unblocker(func: F) -> F: ...
+
+
+@overload
+def unblocker(*, callable_param: Union[int, str] = 0) -> Callable[[F], F]: ...
+
+
+def unblocker(func: Optional[F] = None, *, callable_param: Union[int, str] = 0) -> Union[F, Callable[[F], F]]:
     """Mark a function as an executor wrapper that offloads blocking work.
 
     Use this to annotate wrapper functions that execute their callable
@@ -199,45 +209,49 @@ def unblocker(func: F = None, *, callable_param: int | str = 0) -> F | Callable[
     return decorator
 ```
 
-> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: The `@unblocker` decorator is a v1.1 addition enabling user-defined executor wrappers. Strato v1 recognizes asyncio built-ins; v1.1 adds generalized first-party wrapper annotations and configured wrappers.
+The annotations package supports Python 3.7+, so its public typing uses `typing.Optional`, `typing.Union`, and overloads rather than Python 3.10 `|` union syntax.
+
+> **Decision recap ([Escape Hatches](./design-overview.md#escape-hatches))**: The `@unblocker` decorator is part of the v1 generalized executor-wrapper model. It enables first-party wrappers to declare which callable argument is offloaded.
 
 #### Annotation Detection Algorithm
 
-During Phase 2 (Parse), the AST walker looks for decorator applications:
+During Phase 2 (Parse), the AST walker records raw decorator applications. During Phase 3/5, the facade resolves decorator targets and classifies Strato annotations:
 
 ```
-FUNCTION detect_annotations(func_def: &StmtFunctionDef) -> Option<AnnotationType>:
+FUNCTION classify_annotations(func_def: &StmtFunctionDef, facade: &StratoTyFacade) -> Option<AnnotationType>:
 
   FOR decorator in func_def.decorator_list:
     MATCH decorator:
       // @blocking
       Name("blocking"):
-        IF is_imported_from_strato("blocking"):
+        IF facade.resolves_to_strato_annotation(decorator, "blocking"):
           RETURN Some(AnnotationType::Blocking)
 
       // @strato.blocking
       Attribute(value=Name("strato"), attr="blocking"):
-        RETURN Some(AnnotationType::Blocking)
+        IF facade.resolves_to_strato_annotation(decorator, "blocking"):
+          RETURN Some(AnnotationType::Blocking)
 
       // @non_blocking
       Name("non_blocking"):
-        IF is_imported_from_strato("non_blocking"):
+        IF facade.resolves_to_strato_annotation(decorator, "non_blocking"):
           RETURN Some(AnnotationType::NonBlocking)
 
       // @strato.non_blocking
       Attribute(value=Name("strato"), attr="non_blocking"):
-        RETURN Some(AnnotationType::NonBlocking)
+        IF facade.resolves_to_strato_annotation(decorator, "non_blocking"):
+          RETURN Some(AnnotationType::NonBlocking)
 
       // @unblocker or @unblocker(callable_param=...)
       Name("unblocker") | Call(func=Name("unblocker")):
-        IF is_imported_from_strato("unblocker"):
+        IF facade.resolves_to_strato_annotation(decorator, "unblocker"):
           callable_param = extract_callable_param_arg(decorator)  // Default: 0
           RETURN Some(AnnotationType::Unblocker { callable_param })
 
   RETURN None
 ```
 
-**Import resolution**: `is_imported_from_strato()` checks whether the decorator name was imported from the `strato` package, preventing false positives from unrelated decorators with the same name.
+**Import resolution**: decorator target identity comes from `StratoTyFacade`, preventing false positives from unrelated decorators with the same name while preserving the no-parallel-resolver rule.
 
 ### Stub File Support (.pyi)
 
@@ -245,14 +259,14 @@ Strato supports `.pyi` stub files for annotating third-party libraries without m
 
 #### Resolution Data Flow
 
-1. **Phase 1 (Discovery)**: The file manifest includes `.pyi` files found in source roots (alongside `.py` files) and `stub_paths` (from config).
+1. **Phase 1 (Discovery)**: The file manifest includes `.pyi` files found in source roots (alongside `.py` files) and `stub_paths` (from config). `stub_paths` are also passed to vendored ty as `environment.extra-paths`, not as project roots, so ty can resolve imports against those stubs without classifying them as first-party source files.
 
-2. **Phase 3 (Resolve)**: When both `foo.py` and `foo.pyi` exist:
+2. **Phase 3 (Semantics)**: When both `foo.py` and `foo.pyi` exist:
    - The `.py` file is used for call graph construction (body analysis)
-   - The `.pyi` file is used for annotation extraction (`@blocking`/`@non_blocking`/`@unblocker` only)
+   - The `.pyi` file is used for decorator syntax extraction and semantic annotation classification (`@blocking`/`@non_blocking`/`@unblocker` only)
    - If only `.pyi` exists (no `.py`), it is used solely for annotations (no body analysis possible)
 
-3. **Phase 5 (Annotate)**: `.pyi` files are scanned for decorators. Their annotations override or supplement database entries for the same qualified name.
+3. **Phase 5 (Annotate)**: decorators collected from `.pyi` files are classified through the facade. Their annotations override or supplement database entries for the same qualified name.
 
 4. **First-party classification**: `.pyi` files in `stub_paths` are classified as **third-party**. `.pyi` files in source roots follow normal classification.
 

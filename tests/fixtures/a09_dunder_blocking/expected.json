@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO004",
+      "severity": "error",
+      "message": "Async function 'handler' calls blocking dunder method 'RemoteObject.__str__'",
+      "primary_location": { "file": "main.py", "line": 9, "column": 11 },
+      "related_locations": [{ "file": "main.py", "line": 4, "column": 5, "message": "dunder method defined here" }],
+      "chain": [
+        { "function": "handler", "file": "main.py", "line": 7, "is_async": true, "is_first_party": true },
+        { "function": "RemoteObject.__str__", "file": "main.py", "line": 4, "is_async": false, "is_first_party": true },
+        { "function": "requests.get", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Avoid blocking I/O in dunder methods invoked from async code",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

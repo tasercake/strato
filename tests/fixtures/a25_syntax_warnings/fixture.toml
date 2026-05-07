@@ -1,0 +1,17 @@
+id = "A25"
+name = "Syntax Warnings"
+source_files = ["invalid.py", "valid.py"]
+config_files = []
+
+[[runs]]
+name = "recoverable-syntax-warning"
+purpose = "continues analyzing valid files while reporting syntax errors as warnings"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics", "warnings"]

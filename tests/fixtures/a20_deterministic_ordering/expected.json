@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO001",
+      "severity": "error",
+      "message": "Direct blocking call to 'time.sleep' in async function 'handler_b'",
+      "primary_location": { "file": "main.py", "line": 4, "column": 5 },
+      "chain": [
+        { "function": "handler_b", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Wrap in `await asyncio.to_thread(...)` or use async alternative",
+      "intervention_strategy": "first-party-deepest"
+    },
+    {
+      "code": "STRATO001",
+      "severity": "error",
+      "message": "Direct blocking call to 'time.sleep' in async function 'handler_a'",
+      "primary_location": { "file": "main.py", "line": 7, "column": 5 },
+      "chain": [
+        { "function": "handler_a", "file": "main.py", "line": 6, "is_async": true, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Wrap in `await asyncio.to_thread(...)` or use async alternative",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 2, "analysis_time_ms": 0 }
+}

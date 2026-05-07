@@ -4,7 +4,7 @@
 
 ### Type System Limitations
 
-Strato's semantic resolution depends on the `ty` crate for module, name, and type facts. When ty cannot provide the fact Strato needs for a call edge, the call is skipped silently per the [Precision Policy](./design-overview.md#precision-policy).
+Strato's semantic resolution depends on the Strato facade over vendored Ruff/ty for module, name, type, call, property, and dunder facts. When a supported facade query returns `Unknown` for an individual expression, the call is skipped silently per the [Precision Policy](./design-overview.md#precision-policy).
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
@@ -17,7 +17,7 @@ Strato's semantic resolution depends on the `ty` crate for module, name, and typ
 
 ### Import System Limitations
 
-Strato relies on ty for static import semantics under configured source roots, Python version, and stub paths. Dynamic or runtime-modified imports remain outside Strato's guarantees.
+Strato relies on vendored Ruff/ty for static import semantics under configured source roots, Python version, and stub paths mapped to ty `environment.extra-paths`. Dynamic or runtime-modified imports remain outside Strato's guarantees.
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
@@ -26,8 +26,8 @@ Strato relies on ty for static import semantics under configured source roots, P
 | **`.pth` files** | `site-packages/*.pth` files modify `sys.path` at runtime. | Use explicit source roots in config. | v1 – out of scope |
 | **Import hooks** | Custom `sys.meta_path` or `sys.path_hooks` importers. | Use standard filesystem-based imports. | v1 – out of scope |
 | **Conditional imports** | Resolution follows ty's static semantics; Strato does not execute both runtime branches. | Use a single canonical import. | v1 – best-effort |
-| **Star imports** | Supported only when ty can statically enumerate the exported names. | Use explicit imports. | v1 – best-effort |
-| **Namespace packages (PEP 420)** | Support depends on ty and the configured source roots/stub paths. External namespace packages are not a Strato guarantee. | Add `__init__.py` or explicit source roots where possible. | v1 – partial |
+| **Star imports** | Supported only in happy-path cases where ty can statically enumerate the exported names. | Use explicit imports. | v1 – best-effort |
+| **Namespace packages (PEP 420)** | Happy-path first-party namespace packages can resolve under configured source roots; support otherwise depends on ty and stub/source-root configuration. External namespace packages are not a Strato guarantee. | Add `__init__.py` or explicit source roots where possible. | v1 – partial |
 | **Circular imports** | Symbols registered before bodies walked, but runtime `ImportError` not detected. | Refactor to eliminate circular imports. | v1 – no runtime validation |
 
 ### Call Graph Limitations
@@ -43,13 +43,13 @@ Strato builds a **static call graph** by analyzing function bodies. It cannot re
 | **Generators and `yield`** | Generator bodies visited, but generator **consumption** (`next(gen())`) does not create call edge to body. | Annotate blocking generators with `@blocking`. | v1 – partial support |
 | **`eval()` / `exec()`** | String-based code execution invisible. | Avoid in async contexts. | v1 – out of scope |
 | **`getattr()` / `setattr()`** | Dynamic attribute access unresolvable. | Use explicit attribute access. | v1 – unresolvable |
-| **`functools.partial`** | Partial application not tracked. | Annotate partial-wrapped functions. | v1 – unresolvable |
+| **General `functools.partial` flow** | Partial application is not tracked as a general callable value outside recognized executor-wrapper arguments. | Use direct calls or annotate/configure the wrapper that receives the callable. | v1 – limited support |
 
 ### Scope Limitations
 
 | Limitation | Impact | Mitigation | Status |
 |-----------|--------|------------|--------|
-| **asyncio-only** | trio, curio, anyio escape hatches not recognized. Blocking calls wrapped in these are flagged as errors. | Use asyncio, or annotate wrapped functions with `@non_blocking`. | v1 – asyncio only ([Async Library Support](./design-overview.md#async-library-support)) |
+| **asyncio-only** | trio, curio, and anyio framework semantics are not modeled in v1. Built-in escape hatches are asyncio-only. | Use asyncio for v1, or mark project-specific safe boundaries explicitly. | v1 – asyncio only ([Async Library Support](./design-overview.md#async-library-support)) |
 | **No runtime analysis** | Cannot detect blocking calls conditionally skipped at runtime. | Use runtime profiling tools to complement. | v1 – static only |
 | **No inter-process analysis** | Blocking calls in subprocesses invisible. | Subprocess code is isolated from event loop. | v1 – out of scope |
 | **Single-project only** | Does not traverse into installed third-party packages. | Extend blocking database via config. | v1 – first-party focus |
@@ -61,11 +61,11 @@ Strato follows a **high-precision policy** ([Precision Policy](./design-overview
 
 | Case | Behavior | Rationale |
 |------|----------|-----------|
-| **Unresolvable callee** | Semantic layer has no callable target → no call edge created | Unknown != Blocking |
-| **Unknown semantic target → no property/dunder edge** | ty cannot resolve the property or dunder target → access not checked | Cannot prove which callable would run |
+| **Unresolvable callee** | Facade has no callable target → no call edge created | Unknown != Blocking |
+| **Unknown semantic target → no property/dunder edge** | The facade cannot resolve the property or dunder target → access not checked | Cannot prove which callable would run |
 | **External symbol not in DB** | Third-party symbol without database entry → no phantom node | Only known-blocking third-party functions tracked |
-| **Unresolvable import** | Dynamic import, missing `__init__.py` → no binding | Cannot analyze what doesn't exist on filesystem |
-| **Star import with parse error** | Target module unparseable → no bindings from star import | Cannot enumerate symbols without parsing |
+| **Unresolvable import** | Dynamic import, import hook, runtime path mutation, or missing module → no binding | Cannot analyze what is not available through static filesystem-backed import semantics |
+| **Star import with severe syntax errors** | Target module cannot provide a safe export set → no bindings from star import | Cannot enumerate symbols without reliable declarations |
 | **Decorator replacing function** | Original function analyzed, not wrapper | Decorators not executed statically |
 | **Callback parameter invoked** | `callback()` inside function → unresolvable | Higher-order requires interprocedural analysis |
 | **Conditional import branch not resolved by ty** | Binding unavailable to Strato | Best-effort static semantics |

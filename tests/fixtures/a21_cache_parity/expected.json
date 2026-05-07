@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO002",
+      "severity": "error",
+      "message": "Transitive blocking call reachable from async context",
+      "primary_location": { "file": "main.py", "line": 4, "column": 5 },
+      "chain": [
+        { "function": "handler", "file": "main.py", "line": 6, "is_async": true, "is_first_party": true },
+        { "function": "helper", "file": "main.py", "line": 3, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Fresh and cached analysis must emit this same diagnostic",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

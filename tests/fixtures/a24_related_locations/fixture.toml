@@ -1,0 +1,17 @@
+id = "A24"
+name = "Related Locations"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "checks deterministic related-location shape and ordering"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "full_json"
+path = "expected.json"
+assert = ["diagnostics", "warnings", "stats"]

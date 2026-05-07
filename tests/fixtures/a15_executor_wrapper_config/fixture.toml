@@ -1,0 +1,17 @@
+id = "A15"
+name = "Executor Wrapper Config"
+source_files = ["main.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "configured-wrapper"
+purpose = "uses pyproject executor-wrapper config to suppress the wrapped callable"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"
+expected_exit_code = 0
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

@@ -1,0 +1,30 @@
+id = "A21"
+name = "Cache Parity"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "fresh"
+purpose = "records the fresh-analysis diagnostic used for cache parity"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "fresh"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]
+
+[[runs]]
+name = "cached"
+purpose = "cached analysis must preserve diagnostics, locations, and ordering"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "cached"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

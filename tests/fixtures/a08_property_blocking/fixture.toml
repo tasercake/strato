@@ -1,0 +1,17 @@
+id = "A8"
+name = "Property Blocking"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "classifies blocking descriptor access as STRATO003"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

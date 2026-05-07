@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO002",
+      "severity": "error",
+      "message": "Transitive blocking call reachable from async context",
+      "primary_location": { "file": "main.py", "line": 13, "column": 5 },
+      "related_locations": [{ "file": "main.py", "line": 13, "column": 5, "message": "blocking call: time.sleep" }],
+      "chain": [
+        { "function": "handler", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
+        { "function": "level_1", "file": "main.py", "line": 6, "is_async": false, "is_first_party": true },
+        { "function": "level_2", "file": "main.py", "line": 9, "is_async": false, "is_first_party": true },
+        { "function": "level_3", "file": "main.py", "line": 12, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Move the blocking call behind an executor wrapper or async API",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 4, "call_graph_nodes": 4, "call_graph_edges": 4, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

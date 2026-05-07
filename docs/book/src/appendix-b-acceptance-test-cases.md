@@ -1,5 +1,14 @@
 # Appendix B: Acceptance Test Cases
 
+Each executable fixture directory contains a `fixture.toml` manifest. The manifest is the source of truth for how Strato is invoked and what the test asserts:
+
+- `source_files` and `config_files` list every fixture input used by the run.
+- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), cache mode, expected exit code, and expectation path.
+- expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
+- expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test.
+
+Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, `warnings`, and `stats`; semantic fixtures should not assert exact message text or stats unless that is their explicit purpose.
+
 ### A1: Direct Blocking in Async (STRATO001)
 
 **Code:**
@@ -14,11 +23,11 @@ async def handler():
 **Expected:**
 - 1 diagnostic
 - Error code: STRATO001
-- Message: "Direct blocking call to 'time.sleep' in async function 'handler'"
+- Direct-call classification; exact message text is covered by output-contract fixtures
 
 ---
 
-### A2: Indirect Blocking via Sync Intermediary (STRATO002)
+### A2: Transitive Blocking (STRATO002)
 
 **Code:**
 
@@ -35,8 +44,8 @@ def helper():
 **Expected:**
 - 1 diagnostic
 - Error code: STRATO002
-- Message: "Async function 'handler' calls blocking function 'helper'"
 - Chain length: 3 (handler -> helper -> time.sleep)
+- With the default `first-party-deepest` strategy, primary location is the `time.sleep(1)` call inside `helper`
 
 ---
 
@@ -112,9 +121,9 @@ async def handler():
 
 **Expected:**
 - 1 diagnostic
-- Error code: STRATO002
-- Message: "Async function 'handler' calls blocking function 'custom_slow'"
+- Error code: STRATO001
 - `@blocking` decorator marks function as blocking regardless of implementation
+- A direct async call to an `@blocking` function is still a direct blocking call
 
 ---
 
@@ -160,7 +169,7 @@ async def handler():
 **Expected:**
 - 1 diagnostic
 - Error code: STRATO003
-- Message: "Async function 'handler' accesses blocking property 'DataFetcher.data'"
+- Primary location is the property access that introduces the blocking path
 
 ---
 
@@ -183,7 +192,7 @@ async def handler():
 **Expected:**
 - 1 diagnostic
 - Error code: STRATO004
-- Message: "Async function 'handler' calls blocking dunder method 'RemoteObject.__str__'"
+- Primary location is the implicit dunder invocation, e.g. `str(obj)`
 
 ---
 
@@ -210,8 +219,8 @@ async def handler():
 **Expected:**
 - 1 diagnostic in main.py
 - Error code: STRATO002
-- Message: "Async function 'handler' calls blocking function 'slow_util'"
 - Related location: utils.py:3 (definition of slow_util)
+- With `first-party-deepest`, primary location is the `time.sleep(1)` call in `utils.py`
 
 ---
 
@@ -292,20 +301,21 @@ async def unsafe_caller():
 
 ### A14: @unblocker Basic
 
-This is a v1.1 acceptance case for generalized first-party wrappers.
+This is a v1 acceptance case for generalized first-party wrappers.
 
 **Code:**
 
 ```python
+import asyncio
 import time
 from strato import unblocker
 
 @unblocker
 def my_offload(func):
-    return func()
+    return asyncio.to_thread(func)
 
 async def safe_handler():
-    my_offload(lambda: time.sleep(1))
+    await my_offload(lambda: time.sleep(1))
 
 async def unsafe_handler():
     time.sleep(1)
@@ -320,7 +330,7 @@ async def unsafe_handler():
 
 ### A15: Executor Wrapper Config
 
-This is a v1.1 acceptance case for generalized configured wrappers.
+This is a v1 acceptance case for generalized configured wrappers.
 
 **pyproject.toml:**
 
@@ -437,7 +447,7 @@ async def unsafe_handler():
 
 ### A19: Alias-Based Wrapper Path is Safe
 
-This is a v1.1 acceptance case for generalized configured wrappers.
+This is a v1 acceptance case for generalized configured wrappers.
 
 **pyproject.toml:**
 
@@ -527,7 +537,7 @@ async def handler():
 **Expected:**
 - 1 diagnostic
 - Error code: STRATO002
-- Star import resolved correctly
+- Star import resolved in this statically enumerable happy path. Dynamic or non-enumerable star imports remain best-effort.
 
 ---
 
@@ -562,7 +572,7 @@ async def handler():
 
 **Expected:**
 - 1 diagnostic
-- Namespace package (directory without `__init__.py`) resolved correctly
+- Namespace package (directory without `__init__.py`) resolved under the fixture source root. External or ambiguous namespace packages remain ty/source-root dependent.
 
 ---
 
@@ -581,40 +591,52 @@ async def handler():
 ```
 
 **Expected JSON output:**
+This fixture intentionally uses `full_json` because related-location shape and ordering are the behavior under test.
 
 ```json
 {
+  "version": "1.0",
   "diagnostics": [
     {
       "code": "STRATO002",
-      "message": "Async function 'handler' calls blocking function 'helper'",
+      "severity": "error",
+      "message": "Transitive blocking call reachable from async context",
       "primary_location": {
-        "file": "example.py",
-        "line": 7,
+        "file": "main.py",
+        "line": 4,
         "column": 5
       },
       "related_locations": [
         {
-          "file": "example.py",
+          "file": "main.py",
           "line": 3,
           "column": 1,
           "message": "helper defined here"
         },
         {
-          "file": "example.py",
+          "file": "main.py",
           "line": 4,
           "column": 5,
           "message": "blocking call: time.sleep"
         }
-      ]
+      ],
+      "chain": [
+        { "function": "handler", "file": "main.py", "line": 6, "is_async": true, "is_first_party": true },
+        { "function": "helper", "file": "main.py", "line": 3, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Wrap the blocking call in `await asyncio.to_thread(...)` or make the helper async-safe",
+      "intervention_strategy": "first-party-deepest"
     }
-  ]
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
 }
 ```
 
 ---
 
-### A25: Parse Warnings
+### A25: Syntax Warnings
 
 **valid.py:**
 
@@ -634,5 +656,5 @@ def broken(
 
 **Expected:**
 - 1 diagnostic from valid.py (STRATO001)
-- 1 warning: "Failed to parse invalid.py: syntax error"
-- Analysis continues despite parse failure
+- 1 warning: "Syntax error in invalid.py"
+- Analysis continues despite syntax errors when other source files remain analyzable

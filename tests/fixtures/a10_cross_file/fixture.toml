@@ -1,0 +1,17 @@
+id = "A10"
+name = "Cross File"
+source_files = ["main.py", "utils.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "traces blocking propagation across first-party files"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

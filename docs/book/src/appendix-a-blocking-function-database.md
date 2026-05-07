@@ -1,6 +1,6 @@
 # Appendix A: Blocking Function Database (Complete)
 
-This appendix lists every built-in entry in Strato's blocking function database: 60 entries across six categories. Users can extend this via `[tool.strato.blocking]` configuration ([User Configuration](./blocking-function-database-annotations.md#user-configuration)) or `@blocking` decorator ([Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
+This appendix lists every built-in entry in Strato's blocking function database: 61 entries across six categories. Users can extend this via `[tool.strato.blocking]` configuration ([User Configuration](./blocking-function-database-annotations.md#user-configuration)) or `@blocking` decorator ([Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
 
 ### Sleep
 

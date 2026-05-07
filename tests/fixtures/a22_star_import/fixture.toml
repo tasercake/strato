@@ -1,0 +1,17 @@
+id = "A22"
+name = "Star Import"
+source_files = ["main.py", "module_a.py"]
+config_files = []
+
+[[runs]]
+name = "statically-enumerable"
+purpose = "happy-path star import where ty can enumerate exported names"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

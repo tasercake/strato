@@ -1,6 +1,6 @@
 # Blocking Propagation
 
-> **Decision recap**: [Blocking Propagation decision](./design-overview.md#scc-based-propagation-vs-iterative-fixpoint) – Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
+> **Decision recap**: [Blocking Propagation decision](./design-overview.md#blocking-propagation) – Use Tarjan's algorithm for strongly connected component decomposition, followed by topological propagation over the condensation graph. This eliminates cycles and enables single-pass O(V+E) propagation without iterative fixpoint computation.
 
 ### The Fixpoint Problem
 

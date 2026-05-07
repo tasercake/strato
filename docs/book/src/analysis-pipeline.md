@@ -6,7 +6,7 @@ Strato's analysis runs as a seven-phase pipeline, each phase consuming the outpu
 Discovery → Parse → Semantics → Build → Annotate → Propagate → Report
 ```
 
-Each phase is designed for isolation, testability, and graceful degradation. Failures in early phases (parse errors, semantic resolution failures) are collected as warnings but do not halt analysis.
+Each phase is designed for isolation, testability, and graceful degradation. Failures in early phases (syntax errors, semantic resolution failures) are collected as warnings but do not halt analysis.
 
 ### Phase 1: Discovery
 
@@ -17,6 +17,8 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
 1. **Load configuration** from `pyproject.toml` under `[tool.strato]`:
    - `src_roots`: explicit list of directories containing first-party code
    - `exclude`: glob patterns for files/directories to skip
+   - blocking database extensions and removals from `[tool.strato.blocking]`
+   - executor-wrapper configuration from `[tool.strato.executor-wrappers]`
 
 2. **Auto-detect source roots** if `src_roots` is not explicitly configured:
    - Check `[tool.setuptools.packages.find]` for `where` directive
@@ -24,77 +26,119 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
    - Scan for top-level `__init__.py` files to identify package roots
 
 3. **Build file manifest:**
-   - Recursively walk all source roots and collect `.py` files
+   - Recursively walk all source roots and collect `.py` and `.pyi` files
+   - Recursively walk `stub_paths` and collect `.pyi` files
    - Compute SHA-256 content hash for each file (used for incremental analysis caching)
    - Classify each file:
+     - **Source:** `.py` file used for body analysis and call graph construction
+     - **Stub:** `.pyi` file used for annotation/declaration metadata only
      - **First-party:** file path is under any configured source root
-     - **Third-party:** everything else (site-packages, stdlib, external dependencies)
+     - **Third-party stub:** `.pyi` file under `stub_paths`
+   - Load and normalize the effective blocking database from built-ins plus user config so Phase 4 can pre-seed external phantom nodes.
 
 **Output:** `FileManifest` containing:
-- `files: Vec<FileEntry>` where `FileEntry = { path, content_hash, is_first_party }`
+- `files: Vec<FileEntry>` where `FileEntry = { path, content_hash, kind: FileKind, is_first_party }`
 - `source_roots: Vec<PathBuf>` (internal derived value from configured `src_roots` or auto-detection)
+- `blocking_database: BlockingDatabase` (built-ins plus config additions/removals)
+- `escape_hatch_config: EscapeHatchConfig`
 
 ### Phase 2: Parse
 
-**Objective:** Parse all Python files into Strato-owned ASTs and extract syntactic declarations needed by later phases.
+**Objective:** Load Ruff parsed modules from the vendored Ruff/ty project database and extract Strato-owned syntactic declarations needed by later phases.
 
 **Steps:**
 
-1. **Parse all files in parallel** using `ruff_python_parser`:
-   - Parallelized via `rayon::par_iter()` (embarrassingly parallel workload)
-   - Parse errors are **non-fatal**: collected as `AnalysisWarning::ParseError { path, error }`
-   - Analysis continues on all successfully parsed files
+1. **Initialize the vendored Ruff/ty project database** using `ty_project::ProjectDatabase`:
+   - Ruff is vendored as a pinned monorepo submodule under `vendor/ruff`.
+   - Strato may apply surgical patches to vendored Ruff/ty to expose semantic facts required by the facade.
+   - Project settings, source roots, Python version, and include/exclude patterns are translated into ty project metadata.
+   - `stub_paths` are translated to ty `environment.extra-paths` so they participate in module resolution without becoming first-party project roots.
 
-2. **Extract `FileSyntax`** from each AST:
-   - **Function/method definitions:** name, qualified path, `is_async` flag, location
-   - **Class definitions:** name, base classes, location
-   - **Import statements:** module, imported names, aliases, relative level
-   - **Decorators:** applied to functions/classes (e.g., `@blocking`, `@property`)
+2. **Load parsed modules** through `ruff_db::parsed::parsed_module`:
+    - Ruff's parser remains the parser of record, but Strato does not maintain a second independent AST parse when the ty database can provide one.
+   - Ruff's parser is error-resilient: syntax errors are exposed on the parsed module rather than treated as ordinary parser failure.
+   - Syntax errors are **non-fatal**: collected as `AnalysisWarning::SyntaxError { path, error }`
+   - Analysis continues on every module from which Strato can safely extract declarations.
 
-3. **Parser abstraction layer:**
-   - All ruff parser access goes through `trait PythonParser`:
-     ```
-     trait PythonParser {
-         fn parse(&self, source: &str) -> Result<ParsedModule, ParseError>;
-     }
-     ```
-   - Isolates analysis logic from ruff API changes
-   - Enables test mocking with synthetic ASTs
+3. **Extract `FileSyntax`** from each parsed module:
+    - **Function/method definitions:** name, qualified path, `is_async` flag, location
+    - **Class definitions:** name, base classes, location
+    - **Import statements:** module, imported names, aliases, relative level
+    - **Decorator syntax:** raw decorator expressions applied to functions/classes (semantic classification happens after facade resolution)
+   - `.py` source files contribute declarations and bodies for graph construction.
+   - `.pyi` stub files contribute declarations and decorator syntax only; stub bodies are never walked for call edges.
 
-**Output:** `ParsedFiles = BTreeMap<PathBuf, ParsedModule>` where `ParsedModule = { ast, syntax }`. The ordered map is part of the determinism contract for Strato-owned iteration.
+4. **Adapter boundary:**
+   - All direct Ruff/ty access goes through `strato_ty_adapter`.
+   - `strato_core` receives Strato-owned syntax and semantic target types, not raw ty internals except where an opaque handle is required.
+   - Tests mock the adapter facade rather than inventing a separate parser abstraction.
 
-### Phase 3: Semantics (ty Semantic Context)
+**Output:** `ParsedFiles = BTreeMap<PathBuf, ParsedModuleRef>` plus `FileSyntax` extracted from source and stub modules. The ordered map is part of the determinism contract for Strato-owned iteration.
 
-**Objective:** Initialize ty over the project and expose only the stable semantic facts Strato needs for blocking analysis.
+### Phase 3: Semantics (Strato ty Facade)
 
-**Risk:** This is the **highest-risk integration point** of the pipeline. Python's import and type semantics are complex, and ty is pre-1.0.
+**Objective:** Query a narrow Strato-owned facade over vendored Ruff/ty and expose only the semantic facts Strato needs for blocking analysis.
+
+**Risk:** This is the **highest-risk integration point** of the pipeline. Python's import and type semantics are complex, ty is pre-1.0, and Strato intentionally vendors and patches Ruff/ty APIs where needed.
 
 #### Strato-owned setup
 
-1. Configure ty with the same source roots, Python version, and stub paths used by Strato discovery.
-2. Provide the discovered file set and source text to ty's semantic database.
-3. Run Strato syntactic extraction from Phase 2 in parallel with, but not as a replacement for, ty's own semantic model.
-4. Normalize facts consumed from ty into deterministic Strato identifiers before graph construction.
+1. Keep `vendor/ruff` pinned to an audited commit and record local Strato patches.
+2. Configure `ty_project::ProjectDatabase` with Strato's source roots, Python version, include/exclude patterns, and stub paths mapped as ty `environment.extra-paths`.
+3. Use `ty_module_resolver` for module and search-path semantics; Strato does not implement a parallel module resolver.
+4. Expose required facts through `strato_ty_adapter::StratoTyFacade`.
+5. Normalize facts consumed from the facade into deterministic Strato identifiers before graph construction.
+
+#### Facade API surface
+
+The facade is allowed to call patched vendored Ruff/ty internals. `strato_core` is not.
+
+```rust
+enum ResolvedTarget {
+    FirstPartyDefinition(DefinitionKey),
+    ExternalQualifiedNames(BTreeSet<String>),
+    Unknown,
+}
+
+trait StratoTyFacade {
+    fn files(&self) -> Vec<FileId>;
+    fn parsed_module(&self, file: FileId) -> Option<ParsedModuleRef>;
+    fn callables_in_file(&self, file: FileId) -> Vec<CallableInfo>;
+    fn resolve_call_target(&self, file: FileId, call: &ExprCall) -> ResolvedTarget;
+    fn resolve_callable_reference(&self, file: FileId, expr: &Expr) -> ResolvedTarget;
+    fn resolve_attribute_target(&self, file: FileId, attr: &ExprAttribute) -> ResolvedTarget;
+    fn resolve_property_getter(&self, file: FileId, attr: &ExprAttribute) -> ResolvedTarget;
+    fn resolve_dunder_target(&self, file: FileId, operation: DunderOperation) -> Vec<ResolvedTarget>;
+    fn resolves_to_event_loop_run_in_executor(&self, file: FileId, call: &ExprCall) -> bool;
+}
+```
+
+Vendored Ruff/ty patches should expose facts, not Strato policy. Blocking classification, executor suppression, propagation, and diagnostics remain outside the vendored tree.
+
+The v1 adapter requires explicit vendored Ruff/ty patch APIs for `definitions_for_call`, `definitions_for_callable_reference`, descriptor-aware property getter resolution, `definitions_for_dunder_operation`, external qualified alias derivation, and deterministic definition qualified names. These patch APIs are milestone M-1 deliverables, not optional enhancements.
 
 #### Facts Strato consumes from ty
 
 | Fact | Used For |
 |------|----------|
 | Resolved callable target for a call expression | Direct call and alias edge construction |
+| Resolved callable target for a callable reference | Executor-wrapper synthetic edges |
 | Resolved first-party definition identity | Mapping semantic targets to `CallGraphNode`s |
-| External qualified name when available | Matching calls against blocking database phantom nodes |
+| External qualified aliases when available | Matching calls against blocking database phantom nodes, including public aliases and implementation-definition names |
 | Attribute target and owning class | Method/property edge construction |
 | Class hierarchy lookup for an operation | Dunder edge construction |
+| Decorator target identity | Classification of `@blocking`, `@non_blocking`, and `@unblocker` syntax |
+| Event-loop `run_in_executor` target identity | Executor-wrapper detection without a Strato-owned local resolver |
 
-Strato does not serialize ty facts, expose ty's internal types in public APIs, or maintain a parallel import resolver. If ty cannot provide a fact, Strato treats the expression as unknown and creates no edge.
+Strato does not serialize ty facts, expose ty's internal types from `strato_core`, or maintain a parallel import resolver. If a supported facade query returns `Unknown` for an individual expression, Strato creates no edge for that expression. External targets carry a deterministic set of possible qualified aliases because ty/typeshed may resolve a public symbol through an implementation module, inherited base class, or re-exported definition.
 
-**Output:** `SemanticContext` plus a deterministic `SemanticFactSet` for facts already queried during this run. The semantic context is in-memory only.
+**Output:** `StratoTyProject` plus deterministic normalized semantic targets queried during this run. The ty project database and facade state are in-memory only.
 
 ### Phase 4: Build (Call Graph Construction)
 
 **Objective:** Construct a directed graph of all function calls in the codebase.
 
-This phase walks the AST of every function body and records call edges. Callee resolution uses the ty-backed semantic context from Phase 3 and normalized Strato identifiers, not a separate Strato module resolver.
+This phase starts by pre-seeding phantom nodes from the effective `BlockingDatabase` loaded in Phase 1. It then walks the AST of every source-file function body and records call edges. Stub-file bodies are never walked. Callee resolution uses the Strato ty facade from Phase 3 and normalized Strato identifiers, not a separate Strato module resolver.
 
 **Detailed algorithm in [Call Graph & Type Resolution](./call-graph-type-resolution.md#call-graph--type-resolution).**
 
@@ -106,7 +150,7 @@ This phase walks the AST of every function body and records call edges. Callee r
 
 **Steps:**
 
-1. **Load blocking database:** JSON file mapping qualified names to blocking status:
+1. **Use the effective blocking database loaded in Phase 1:** built-ins plus project config mapping qualified names to blocking status:
    ```json
    {
      "requests.get": "blocking",
@@ -120,8 +164,8 @@ This phase walks the AST of every function body and records call edges. Callee r
    - `@non_blocking` decorator explicitly marks a function as non-blocking
    - Decorators override database entries
 
-3. **Scan `.pyi` stub files** for type annotations:
-   - Look for `# strato: blocking` comments in stubs
+3. **Apply `.pyi` stub annotations:**
+   - Resolve decorators collected from stubs to `strato` annotations through the facade
    - Useful for annotating third-party libraries without modifying source
 
 4. **Update `CallGraphNode.blocking_status`:**
@@ -147,11 +191,9 @@ If function `f` calls blocking function `g`, then `f` is also blocking (unless t
 **Steps:**
 
 1. **Find all async functions** in the call graph
-2. **Walk outgoing edges** from each async function
-3. **Report violations** where:
-   - Edge target has `blocking_status = KnownBlocking | PropagatedBlocking`
-   - Edge does **not** have `in_executor = true`
-4. **Format reports** with location, call chain, and suggested fixes
+2. **Read each async node's propagated `BlockingReason`**, which stores the selected shortest path from async context to blocking root
+3. **Report violations** for async nodes with `blocking_status = PropagatedBlocking | KnownBlocking` when the selected path is not protected by executor edges
+4. **Format reports** with primary call-site location, call chain, and suggested fixes
 
 **Detailed output format in [Error Reporting & Diagnostics](./error-reporting-diagnostics.md#error-reporting--diagnostics).**
 

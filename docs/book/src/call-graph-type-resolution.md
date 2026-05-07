@@ -1,6 +1,6 @@
 # Call Graph & Type Resolution
 
-> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Module, name, and type semantics come from Astral's `ty` crate; Strato consumes only normalized semantic facts and owns the blocking-specific graph, annotation, propagation, and reporting layers. See [Semantic Substrate](./design-overview.md#semantic-substrate) for the full tradeoff analysis.
+> **Decision recap:** The call graph is the central data structure for propagation analysis. We chose a node-per-callable model (rather than node-per-statement) to keep graph size manageable and enable efficient traversal. Module, name, and type semantics come from a Strato facade over vendored Ruff/ty; Strato consumes only normalized semantic facts and owns the blocking-specific graph, annotation, propagation, and reporting layers. See [Semantic Substrate](./design-overview.md#semantic-substrate) for the full tradeoff analysis.
 
 ### Graph Data Model
 
@@ -78,7 +78,7 @@ Call graph construction happens in two phases:
 
 **Phase A: Register all callable nodes**
 
-Walk the AST of every file and register a `CallGraphNode` for each function/method definition. This creates the node set before analyzing call edges.
+Walk the AST of every file and register a `CallGraphNode` for each function/method definition and lambda expression. Lambda nodes use deterministic synthetic names based on the enclosing callable plus the lambda expression's file position. This creates the node set before analyzing call edges.
 
 **Phase B: Walk function bodies**
 
@@ -88,15 +88,16 @@ For each function, walk its AST and record call edges using `CallEdgeVisitor`.
 
 ```rust
 struct CallEdgeVisitor {
+    file: FileId,
     current_function: NodeId,
     call_graph: &mut CallGraph,
-    semantic_facts: &SemanticFactSet,
+    semantics: &dyn StratoTyFacade,
 }
 
 impl Visitor for CallEdgeVisitor {
     fn visit_expr_call(&mut self, call: &ExprCall) {
-        let callee = self.semantic_facts.target_for_call(&call.func);
-        if let Some(target_node) = callee {
+        let callee = self.semantics.resolve_call_target(self.file, call);
+        if let Some(target_node) = self.call_graph.node_for_target(callee) {
             let in_executor = self.is_wrapped_in_executor(call);
             self.call_graph.add_edge(CallEdge {
                 from: self.current_function,
@@ -116,7 +117,8 @@ impl Visitor for CallEdgeVisitor {
 
     fn visit_expr_attribute(&mut self, attr: &ExprAttribute) {
         // Check if this is a property access
-        if let Some(prop_node) = self.semantic_facts.property_getter_for(&attr) {
+        let getter = self.semantics.resolve_property_getter(self.file, attr);
+        if let Some(prop_node) = self.call_graph.node_for_target(getter) {
             self.call_graph.add_edge(CallEdge {
                 from: self.current_function,
                 to: prop_node,
@@ -137,15 +139,18 @@ impl Visitor for CallEdgeVisitor {
             Mult => "__mul__",
             // ... etc
         };
-        if let Some(dunder_node) = self.semantic_facts.dunder_for(&binop, dunder) {
-            self.call_graph.add_edge(CallEdge {
-                from: self.current_function,
-                to: dunder_node,
-                kind: ImplicitDunder,
-                location: binop.location,
-                in_executor: false,
-                via: None,
-            });
+        let operation = DunderOperation::binary(binop, dunder);
+        for target in self.semantics.resolve_dunder_target(self.file, operation) {
+            if let Some(dunder_node) = self.call_graph.node_for_target(target) {
+                self.call_graph.add_edge(CallEdge {
+                    from: self.current_function,
+                    to: dunder_node,
+                    kind: ImplicitDunder,
+                    location: binop.location,
+                    in_executor: false,
+                    via: None,
+                });
+            }
         }
         walk_expr(self, &binop.left);
         walk_expr(self, &binop.right);
@@ -163,17 +168,19 @@ Determining the target of a call requires resolving the callee expression:
 
 | Callee Expression | Resolution Strategy |
 |-------------------|---------------------|
-| `Name` (e.g., `foo()`) | Ask the semantic layer for the resolved callable target |
-| `Attribute` (e.g., `obj.method()`) | Ask the semantic layer for the resolved attribute target |
+| `Name` (e.g., `foo()`) | Ask the facade for the resolved callable target |
+| `Attribute` (e.g., `obj.method()`) | Ask the facade for the resolved attribute target |
 | `Subscript` (e.g., `funcs[0]()`) | Skip (requires runtime information) |
-| `Lambda` | Create anonymous node for lambda |
+| `Lambda` | Use the pre-registered deterministic lambda node |
 | Unresolvable | Skip silently (no edge created) |
 
 **Key principle:** When callee resolution fails, skip the edge rather than guessing. This maintains high precision at the cost of some recall.
 
-### Semantic Resolution via `ty`
+### Semantic Resolution via Vendored Ruff/ty
 
-Strato uses Astral's `ty` crate as the semantic substrate. There is no Strato-owned resolver API with invented methods, and no parallel local-binding fallback. The graph builder consumes normalized facts from the ty-backed semantic layer and converts them into Strato `NodeId`s or known external qualified names.
+Strato uses a source-vendored Ruff monorepo as the semantic substrate. There is no Strato-owned resolver with parallel Python semantics and no local-binding fallback. The graph builder consumes normalized facts from `strato_ty_adapter`, which wraps patched vendored Ruff/ty APIs and converts semantic answers into Strato `NodeId`s or known external qualified aliases.
+
+The adapter modifies vendored Ruff/ty to expose the semantic facts Strato requires. Those patches are narrow and factual: `definitions_for_call`, `definitions_for_callable_reference`, descriptor-aware property getter resolution, `definitions_for_dunder_operation`, external qualified alias derivation, and deterministic definition qualified names. The vendored code must not know about Strato's blocking database, escape hatches, propagation rules, or diagnostic policy.
 
 #### Facts consumed by graph construction
 
@@ -184,9 +191,28 @@ Strato uses Astral's `ty` crate as the semantic substrate. There is no Strato-ow
 | Property getter target for `obj.prop` | `PropertyAccess` edge |
 | Dunder target for operations like `str(obj)` or `obj + other` | `ImplicitDunder` edge |
 | First-party definition identity | Node lookup or node registration |
-| External qualified name | Phantom-node lookup in the blocking database |
+| External qualified aliases | Phantom-node lookup in the blocking database, including public aliases and implementation-definition names |
 
-The exact ty APIs used to obtain these facts are an implementation detail of the pinned ty revision and must be validated in the ty integration spike. This document describes Strato's semantic requirements, not ty's public API.
+The exact vendored Ruff/ty APIs used to obtain these facts are an implementation detail of the pinned Ruff revision. The facade is Strato's stable boundary; vendored patches are allowed when the current Ruff/ty API does not expose a required fact.
+
+#### Required facade-backed helpers
+
+Strato's v1 scope requires facade support for all of the following categories:
+
+| Helper | Required Coverage |
+|--------|-------------------|
+| `resolve_call_target` | Direct calls, imported aliases, method calls, static methods, class methods, direct callable-object invocation (`obj()` resolving to `type(obj).__call__`), and external known names, backed by patched `definitions_for_call` |
+| `resolve_callable_reference` | Callable references passed to executor wrappers, including direct names, imported aliases, attributes, and configured wrapper callable arguments, backed by patched `definitions_for_callable_reference` |
+| `resolve_attribute_target` | Attribute/member target identity for method and descriptor analysis |
+| `resolve_property_getter` | `@property` access target resolution for STRATO003, backed by a descriptor-aware property getter query that returns `property.fget` |
+| `resolve_dunder_target` | Unary, binary, comparison, conversion, formatting, subscript, iterator, context-manager, and `__call__` operations for STRATO004, backed by patched `definitions_for_dunder_operation` |
+| `resolves_to_event_loop_run_in_executor` | Event-loop `run_in_executor` detection without local assignment heuristics |
+| `definition_qualified_name` | Deterministic display/config matching name for first-party definitions |
+| `external_qualified_names` | Deterministic set of normalized external aliases used to match phantom nodes |
+
+If a helper cannot be implemented against upstream public APIs, the vendored Ruff/ty patch set must expose the needed fact before the corresponding Strato feature can ship. Scope is not reduced to fit the current upstream API surface.
+
+Callable-object support is deliberately narrow: direct `obj()` syntax is in scope when ty can resolve the concrete `__call__` target. General callable values, callbacks stored in variables, callables returned from functions, and higher-order dataflow remain out of scope for v1 unless the user annotates/configures the relevant callable explicitly.
 
 #### What Strato does not consume from ty
 
@@ -200,7 +226,7 @@ The exact ty APIs used to obtain these facts are an implementation detail of the
 
 #### Graceful Degradation
 
-`ty` is best-effort for Strato's purposes. When the semantic layer cannot provide a needed fact:
+The vendored Ruff/ty facade is best-effort for individual queries. When the facade cannot provide a needed fact:
 
 1. The graph builder receives no target for that expression.
 2. The corresponding edge is skipped.
@@ -210,14 +236,14 @@ The exact ty APIs used to obtain these facts are an implementation detail of the
 
 ```python
 def foo(x):  # x has no type annotation
-    x.method()  # ty cannot infer type of x
+    x.method()  # facade cannot infer a callable target for x.method
 ```
 
 Result: No edge created for `x.method()` call. This is **by design** – we prefer false negatives over false positives.
 
-#### ty Failures and Panics
+#### Ruff/ty Facade Failures and Panics
 
-If ty cannot initialize for the project or a semantic query fails, Strato emits a warning and skips semantic facts from the affected scope. Recoverable Rust panics at the ty boundary are caught on a best-effort basis where unwinding is available. Strato does not claim to recover from aborting panics or process-level failures.
+If the vendored Ruff/ty project cannot initialize or a facade query fails, Strato emits a warning and skips semantic facts from the affected scope. Recoverable Rust panics at the facade boundary are caught on a best-effort basis where unwinding is available. Strato does not claim to recover from aborting panics or process-level failures.
 
 ### External Symbol Modeling (Phantom Nodes)
 
@@ -227,7 +253,7 @@ External symbols (from third-party libraries or stdlib) are not parsed by Strato
 
 #### Phantom Node Creation
 
-External symbols become graph nodes **only if** they appear in the blocking database. These are called **phantom nodes** (nodes without source location).
+External symbols become graph nodes **only if** any facade-provided external alias appears in the effective blocking database or matches a configured `blocking_modules` prefix. These are called **phantom nodes** (nodes without source location).
 
 **Pre-seeding at Phase 4 initialization:**
 
@@ -246,13 +272,15 @@ for (qualified_name, status) in blocking_database {
 }
 ```
 
+Configured `blocking_modules` entries are applied during graph construction by prefix matching facade-provided external qualified aliases. If a call resolves to aliases including `legacy.module.func` and `legacy.module` is configured as blocking, Strato creates a phantom node for `legacy.module.func` on demand and marks it `KnownBlocking`. Prefix matching uses module-boundary semantics: `legacy.module` matches `legacy.module.func`, but does not match `legacy.module_extra.func`.
+
 #### External Qualification
 
-Strato does not maintain separate import binding rules for external symbols. The ty-backed semantic layer provides a resolved first-party definition identity or, when available, an external qualified name. Strato uses that normalized name only to match a phantom node from the blocking database.
+Strato does not maintain separate import binding rules for external symbols. The facade over vendored Ruff/ty provides a resolved first-party definition identity or, when available, a deterministic set of external qualified aliases. Strato uses those normalized aliases only to match a phantom node from the blocking database.
 
 #### Invisible Externals
 
-Calls to external symbols **not in the blocking database** are invisible to analysis:
+Calls to external symbols **not in the blocking database and not under a configured blocking module** are invisible to analysis:
 
 ```python
 import some_library
@@ -261,7 +289,7 @@ def foo():
     some_library.unknown_function()  # No edge created (not in DB)
 ```
 
-This is **by design**: Strato only tracks blocking behavior for known-blocking functions. Unknown externals remain `Unknown` and are skipped rather than assumed blocking.
+This is **by design**: Strato only tracks blocking behavior for known-blocking functions and configured blocking module prefixes. Unknown externals remain `Unknown` and are skipped rather than assumed blocking.
 
 ### Properties & Dunder Methods
 
@@ -282,11 +310,11 @@ x = foo.bar  # This is a call to bar(), not a field access
 **Detection algorithm:**
 
 1. Encounter `ExprAttribute` (e.g., `foo.bar`)
-2. Ask the semantic layer whether `foo.bar` resolves to a property getter
+2. Ask the facade whether `foo.bar` resolves to a property getter through descriptor-aware property semantics
 3. Normalize the getter target to a Strato `NodeId`
 4. If the target is a property getter, create a `PropertyAccess` edge
 
-**Unknown semantic target:** If the semantic layer cannot resolve the property getter, no property edge is created (high precision).
+**Unknown semantic target:** If the facade cannot resolve the property getter, no property edge is created (high precision).
 
 #### Dunder Method Mapping
 
@@ -328,11 +356,11 @@ Many Python operations implicitly call dunder methods. Strato models these as `I
 
 1. Encounter operation (e.g., `ExprBinOp` with `Add`)
 2. Map operation to dunder method (`__add__`)
-3. Ask the semantic layer whether the operation resolves to `__add__`
+3. Ask the facade whether the operation resolves to `__add__`
 4. Normalize the dunder target to a Strato `NodeId`
 5. If found, create `ImplicitDunder` edge
 
-**Unknown semantic target:** If the semantic layer cannot resolve the dunder target, no dunder edge is created.
+**Unknown semantic target:** If the facade cannot resolve the dunder target, no dunder edge is created.
 
 #### Context Manager Detection
 
@@ -346,8 +374,8 @@ with obj:
 **Detection algorithm:**
 
 1. Encounter `StmtWith`
-2. Resolve type of context expression (`obj`)
-3. Lookup `__enter__` and `__exit__` in type's MRO
+2. Ask the facade for the dunder targets of the context expression (`obj`)
+3. Resolve `__enter__` and `__exit__` through vendored Ruff/ty class hierarchy semantics
 4. Create two `ImplicitDunder` edges: one to `__enter__`, one to `__exit__`
 
 ### Qualified Name Conventions

@@ -1,0 +1,17 @@
+id = "A11"
+name = "Deep Transitive"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "preserves a deep transitive blocking chain"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

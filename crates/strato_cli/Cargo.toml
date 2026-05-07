@@ -1,0 +1,27 @@
+[package]
+name = "strato_cli"
+description = "Command-line interface for Strato."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "strato"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+miette.workspace = true
+strato_core = { path = "../strato_core" }
+tracing.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

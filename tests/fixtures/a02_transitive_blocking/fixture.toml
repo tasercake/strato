@@ -1,0 +1,17 @@
+id = "A2"
+name = "Transitive Blocking"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "first-party-deepest"
+purpose = "selects the deepest first-party blocking call under the default intervention strategy"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

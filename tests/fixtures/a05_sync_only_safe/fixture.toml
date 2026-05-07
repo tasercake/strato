@@ -1,0 +1,17 @@
+id = "A5"
+name = "Sync Only Safe"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "does not report blocking calls that are never reachable from async code"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 0
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

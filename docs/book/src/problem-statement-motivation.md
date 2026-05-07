@@ -73,7 +73,7 @@ def baz():
 **Strato output:**
 
 ```
-STRATO002: Async function 'handler' calls blocking function 'baz'
+STRATO002: Transitive blocking call reachable from async context
   --> example.py:4:5
    |
  4 |     baz()
@@ -161,7 +161,7 @@ async def handler():
 **Strato output:**
 
 ```
-STRATO002: Async function 'handler' calls blocking function 'slow_util'
+STRATO002: Transitive blocking call reachable from async context
   --> main.py:4:5
    |
  4 |     slow_util()
@@ -194,7 +194,7 @@ def level_3():
 **Strato output:**
 
 ```
-STRATO002: Async function 'handler' calls blocking function 'level_1'
+STRATO002: Transitive blocking call reachable from async context
   --> example.py:4:5
    |
  4 |     level_1()

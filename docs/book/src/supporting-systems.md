@@ -1,6 +1,6 @@
 # Supporting Systems
 
-> **Decision recap:** [Caching Strategy](./design-overview.md#caching-strategy) – file-level caching with SHA-256 content hashing for Strato-owned parse/extraction artifacts, excluding ty semantic results, call graph edges, propagation, and diagnostics from the cache. [Distribution](./design-overview.md#distribution) – dual PyPI packages with zero production footprint.
+> **Decision recap:** [Caching Strategy](./design-overview.md#caching-strategy) – file-level caching with SHA-256 content hashing for Strato-owned Phase 1 and Phase 2 extraction artifacts, excluding vendored Ruff parsed modules, Phase 3 vendored ty semantic results, call graph edges, propagation, and diagnostics from the cache. [Distribution](./design-overview.md#distribution) – dual PyPI packages with zero binary footprint and an optional tiny pure-Python annotation package in production.
 
 [tooling]
 
@@ -21,7 +21,7 @@ OPTIONS:
   --config <PATH>            Path to pyproject.toml.
                              Default: auto-detect (walk up).
 
-  --format <FORMAT>          Output format.
+  --output <FORMAT>          Output format.
                              Values: text (default), json, sarif
 
   --intervention-strategy    Override intervention point strategy.
@@ -29,7 +29,7 @@ OPTIONS:
                                      async-boundary
 
   --severity <LEVEL>         Override diagnostic severity.
-                             Values: error (default), warning
+                              Values: error (default), warning
 
   --no-cache                 Disable caching for this run.
 
@@ -39,7 +39,7 @@ OPTIONS:
                              Comma-separated top-level package names.
 
   --python-version <VER>     Override Python version.
-                             Values: 3.7, 3.8, ..., 3.13
+                              Values: 3.7, 3.8, ..., 3.15
 
   --stats                    Show analysis statistics after run.
 
@@ -62,12 +62,12 @@ OPTIONS:
 
 | Code | Meaning |
 |------|---------|
-| 0 | No blocking issues found (some files may have parse warnings) |
+| 0 | No blocking issues found (some files may have syntax warnings) |
 | 1 | Blocking issues detected |
 | 2 | Configuration error (invalid config, missing source roots) |
-| 3 | All files failed to parse (no analysis possible) |
+| 3 | No analyzable source files remain (no analysis possible) |
 
-**Parse error policy**: Individual file parse errors are **non-fatal** – strato emits a warning for each unparseable file and continues on remaining files. Exit code 3 is returned **only** when every file fails to parse. Warnings do NOT affect exit code.
+**Syntax error policy**: Ruff's parser is error-resilient and usually returns an AST plus syntax diagnostics. Individual file syntax errors are **non-fatal** – strato emits a warning for each affected file and continues on remaining analyzable files. Exit code 3 is returned **only** when no source file can be analyzed. Warnings do NOT affect exit code.
 
 #### Example Usage
 
@@ -76,10 +76,10 @@ OPTIONS:
 strato check src/
 
 # CI pipeline (JSON output, fail on issues)
-strato check src/ --format json > report.json
+strato check src/ --output json > report.json
 
 # GitHub Code Scanning
-strato check src/ --format sarif > results.sarif
+strato check src/ --output sarif > results.sarif
 
 # Override strategy
 strato check src/ --intervention-strategy async-boundary
@@ -108,17 +108,21 @@ Strato validates the config at startup and exits with code 2 on error:
 | Check | Error Message |
 |-------|--------------|
 | `src_roots` path doesn't exist | `Source root '{path}' does not exist` |
-| `src_roots` path has no `.py` files | `Source root '{path}' contains no Python files` |
-| Invalid `python_version` | `Invalid python_version: must be '3.7'...'3.13'` |
+| `src_roots` path has no `.py` or `.pyi` files | `Source root '{path}' contains no Python files` |
+| Invalid `python_version` | `Invalid python_version: must be '3.7'...'3.15'` |
 | Invalid `intervention_strategy` | `Invalid strategy: must be 'first-party-deepest' or 'async-boundary'` |
+| Invalid `severity` | `Invalid severity: must be 'error' or 'warning'` |
+| Invalid `output_format` | `Invalid output_format: must be 'text', 'json', or 'sarif'` |
 | `blocking.add` entry missing `name` | `Blocking entry missing required field 'name'` |
 | Invalid `category` in blocking entry | `Unknown category '{cat}'. Valid: sleep, network-io, file-io, subprocess, database-io, user-input, other` |
+| Executor wrapper missing `callable_param` | `Executor wrapper '{name}' missing required field 'callable_param'` |
+| Invalid executor wrapper `callable_param` | `Executor wrapper '{name}' callable_param must be an integer index or keyword name` |
 
 For the complete configuration schema with all available options, see [Appendix D: Configuration Schema](./appendix-d-configuration-schema.md#appendix-d-configuration-schema).
 
 ### Caching Strategy
 
-Strato implements file-level caching to accelerate incremental analysis. The cache stores Strato-owned per-file parse/extraction artifacts keyed by SHA-256 content hash. It does not store ty semantic facts or any graph result that depends on ty.
+Strato implements file-level caching to accelerate incremental analysis. The cache stores Strato-owned per-file extraction artifacts keyed by SHA-256 content hash. Parsed modules and semantic facts are owned by the vendored Ruff/ty `ProjectDatabase` for the current run and are not serialized by Strato.
 
 #### What Is Cached
 
@@ -128,14 +132,15 @@ Each file produces a **per-file analysis result** that can be cached:
 struct CachedFileResult {
     content_hash: [u8; 32],          // SHA-256 of file contents
     syntax: FileSyntax,              // Declarations, imports-as-syntax, decorators
-    annotations: Vec<AnnotationEntry>, // @blocking, @non_blocking found
+    raw_decorators: Vec<DecoratorSyntax>, // Semantic annotation classification happens through the facade
 }
 ```
 
 #### What Is NOT Cached
 
-- **ty semantic results**: The `ty` crate uses Salsa for incremental computation, which maintains its own in-memory cache. Salsa's cache is not serializable and is designed for single-session use.
-- **Resolved semantic facts**: Module/name/type results from ty are rebuilt or re-queried each run.
+- **Ruff parsed modules**: `ruff_db::parsed::parsed_module` is cached by Salsa within the current run. Strato does not serialize Ruff ASTs separately.
+- **ty semantic results**: Vendored ty uses Salsa for incremental computation, which maintains its own in-memory cache. Salsa's cache is not serialized by Strato and is designed for single-session use.
+- **Resolved semantic facts**: Module/name/type/call/property/dunder results from the Strato ty facade are rebuilt or re-queried each run.
 - **Call edges and call graph structure**: Rebuilt each run because edge targets depend on current semantic facts.
 - **Blocking propagation**: Always rerun. Linear-time O(V+E), completes in milliseconds.
 
@@ -157,8 +162,8 @@ Default: `.strato_cache/` in the project root. Binary format using `bincode` for
 
 | Trigger | Action |
 |---------|--------|
-| File content changed (hash mismatch) | Re-parse that file |
-| File added | Parse new file, merge into call graph |
+| File content changed (hash mismatch) | Re-extract Strato syntax for that file; Ruff/ty reparses within its database as needed |
+| File added | Load Ruff parsed module, extract Strato syntax, merge into call graph |
 | File deleted | Remove from call graph, re-propagate |
 | Config changed | Full re-analysis |
 | strato version changed | Full invalidation |
@@ -171,12 +176,12 @@ For each file in project:
   1. Compute SHA-256 hash
   2. Check manifest for matching hash
      ├─ Hit:  Load cached CachedFileResult
-      └─ Miss: Parse → extract → serialize to cache
-   3. Initialize/query ty semantic context for the project
-   4. Build call edges and project call graph from AST + semantic facts
+     └─ Miss: Load Ruff parsed module → extract → serialize to cache
+  3. Initialize/query vendored Ruff/ty ProjectDatabase through StratoTyFacade
+  4. Build call edges and project call graph from parsed modules + facade facts
 
 Always recompute (not cached):
-  - ty semantic database and semantic facts
+  - Ruff/ty ProjectDatabase and semantic facade facts
   - Call edges and call graph structure
   - Blocking propagation (SCC + topological)
   - Diagnostics (generated from propagated graph)
@@ -186,16 +191,16 @@ Always recompute (not cached):
 
 | Scenario | Target | Rationale |
 |----------|--------|-----------|
-| Cached run (no changes) | < 500ms for 500 files | Hash comparison + cached syntax + semantic setup/query + graph rebuild + propagation |
-| Fresh run (first analysis) | < 5s for 500 files | Full parse + resolve + build + propagate |
-| Incremental (1 file changed) | < 1s for 500 files | Re-parse 1 file + full graph rebuild |
+| Cached run (no changes) | < 500ms for 500 files | Hash comparison + cached Strato syntax + Ruff/ty setup and facade queries + graph rebuild + propagation |
+| Fresh run (first analysis) | < 5s for 500 files | Ruff parse + Strato extraction + resolve + build + propagate |
+| Incremental (1 file changed) | < 1s for 500 files | Re-extract 1 file + full facade query/graph rebuild |
 
 #### Time Distribution (Fresh Run)
 
 | Phase | Percentage | Optimization Strategy |
 |-------|-----------|----------------------|
-| Parse | ~60% | Parallel parsing with `rayon` |
-| Semantic setup/queries (ty) | ~25% | Salsa in-run incremental computation |
+| Parse + syntax extraction | ~60% | Reuse Ruff parsed modules; cache Strato-owned extraction |
+| Semantic setup/queries (Ruff/ty facade) | ~25% | Salsa in-run incremental computation |
 | Propagation | ~10% | SCC-based linear-time algorithm |
 | Reporting | ~5% | Minimal graph traversal |
 
@@ -207,7 +212,7 @@ Ruff-level performance (200ms for 630 files) is difficult for **fresh** runs bec
 3. **Graph construction**: Visiting every function body and resolving callees
 4. **Propagation**: Even at O(V+E), thousands of functions with tens of thousands of edges
 
-However, **cached runs** can approach ruff-level speed only if ty setup/query and graph construction stay cheap enough; there is no cross-run ty cache and no cached call-edge set.
+However, **cached runs** can approach Ruff-level speed only if vendored Ruff/ty setup, facade queries, and graph construction stay cheap enough; there is no Strato-owned cross-run Ruff/ty cache and no cached call-edge set.
 
 ### Distribution & Packaging
 
@@ -217,6 +222,7 @@ Strato is distributed as **two separate PyPI packages** to maintain zero binary 
 
 - **Size**: ~5 KB (pure Python, no dependencies)
 - **Runtime cost**: Zero (decorators are identity functions)
+- **Python support**: Python 3.7+, using Python 3.7-compatible type syntax
 - **Install**: `pip install strato`
 
 Contains: `__init__.py`, `_annotations.py` (`@blocking`, `@non_blocking`, `@unblocker`), `py.typed` (PEP 561 marker)
@@ -229,5 +235,5 @@ Contains: `__init__.py`, `_annotations.py` (`@blocking`, `@non_blocking`, `@unbl
 
 #### Zero Binary Footprint Principle
 
-**Production**: `pip install strato` (~5 KB, zero dependencies)
+**Production**: `pip install strato` (~5 KB, zero dependencies) only when annotation decorators are imported by application code
 **Development**: `pip install strato[cli]` (includes strato-cli binary)

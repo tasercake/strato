@@ -7,13 +7,13 @@ Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. A
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `src_roots` | `list[str]` | Auto-detected | Source roots for first-party code detection. Paths relative to `pyproject.toml`. |
-| `python_version` | `str` | `"3.9"` | Minimum Python version. Affects escape hatch recognition (e.g., `asyncio.to_thread` requires 3.9+). Valid: `"3.7"`..`"3.13"`. |
+| `python_version` | `str` | `"3.9"` | Python version used to configure vendored ty. Affects syntax, stdlib stubs, conditional type definitions, and escape hatch recognition (e.g., `asyncio.to_thread` requires 3.9+). Valid: `"3.7"`..`"3.15"`. |
 | `exclude` | `list[str]` | `[]` | Glob patterns for paths to exclude (e.g., `"tests/**"`). |
 | `intervention_strategy` | `str` | `"first-party-deepest"` | Error reporting strategy. Options: `"first-party-deepest"`, `"async-boundary"`. |
-| `severity` | `str` | `"error"` | Diagnostic severity. Options: `"error"`, `"warning"`, `"info"`. |
+| `severity` | `str` | `"error"` | Diagnostic severity. Options: `"error"`, `"warning"`. Diagnostics produce exit code 1 regardless of selected severity. |
 | `cache_dir` | `str` | `".strato_cache"` | Cache directory (relative to `pyproject.toml`). |
 | `cache_enabled` | `bool` | `true` | Enable/disable caching. |
-| `stub_paths` | `list[str]` | `[]` | Additional directories to search for `.pyi` stubs with `@blocking` annotations. |
+| `stub_paths` | `list[str]` | `[]` | Additional directories to search for `.pyi` stubs with `@blocking` annotations. These paths are passed to ty as `environment.extra-paths`, not as project roots. |
 | `output_format` | `str` | `"text"` | Output format. Options: `"text"`, `"json"`, `"sarif"`. |
 
 ### `[tool.strato.blocking]` – Blocking Function Database
@@ -22,7 +22,7 @@ Strato is configured via `pyproject.toml` under the `[tool.strato]` namespace. A
 |-----|------|---------|-------------|
 | `add` | `list[object]` | `[]` | Custom blocking functions. Each: `{ name, help, category }`. |
 | `remove` | `list[str]` | `[]` | Remove built-in entries by qualified name. |
-| `blocking_modules` | `list[str]` | `[]` | Mark entire modules as blocking. |
+| `blocking_modules` | `list[str]` | `[]` | Mark all resolved call targets under these module prefixes as blocking using module-boundary prefix matching. |
 
 **`add` entry fields:**
 - `name` (required): Fully qualified function name (e.g., `"redis.Redis.get"`)
@@ -49,12 +49,14 @@ Wrapper names are TOML keys, so each qualified wrapper name can appear at most o
 | Check | Error Message |
 |-------|---------------|
 | `src_roots` path missing | `Source root '{path}' does not exist` |
-| Invalid `python_version` | `Invalid python_version: must be '3.7'...'3.13'` |
+| Invalid `python_version` | `Invalid python_version: must be '3.7'...'3.15'` |
 | Invalid `intervention_strategy` | `Invalid strategy: must be 'first-party-deepest' or 'async-boundary'` |
-| Invalid `severity` | `Invalid severity: must be 'error', 'warning', or 'info'` |
+| Invalid `severity` | `Invalid severity: must be 'error' or 'warning'` |
+| Invalid `output_format` | `Invalid output_format: must be 'text', 'json', or 'sarif'` |
 | Missing `name` in `blocking.add` | `Blocking entry missing required field 'name'` |
 | Invalid `category` | `Unknown category '{cat}'. Valid: sleep, network-io, file-io, subprocess, database-io, user-input, other` |
 | Missing `callable_param` | `Executor wrapper '{name}' missing required field 'callable_param'` |
+| Invalid `callable_param` | `Executor wrapper '{name}' callable_param must be an integer index or keyword name` |
 
 ### Complete Annotated Example
 
@@ -92,7 +94,6 @@ blocking_modules = [
 [tool.strato.executor-wrappers]
 # Third-party wrappers
 "asgiref.sync.sync_to_async" = { callable_param = 0 }
-"anyio.to_thread.run_sync" = { callable_param = 0 }
 
 # Project-specific wrappers
 "myproject.utils.offload" = { callable_param = 0 }

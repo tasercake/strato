@@ -10,7 +10,8 @@
 | **Intervention point** | The source location shown in a diagnostic – where the user should make a change |
 | **First-party code** | Code in the user's project (under configured source roots) |
 | **Third-party code** | Code from external packages (stdlib, site-packages) |
-| **ty** | Astral's Python type inference crate, used for resolving method calls, properties, and dunder invocations |
+| **ty** | Astral's Python type checker within the vendored Ruff monorepo, used through `strato_ty_adapter` for resolving method calls, properties, and dunder invocations |
+| **StratoTyFacade** | Strato-owned compatibility boundary over patched vendored Ruff/ty APIs. It exposes semantic facts needed by graph construction without leaking ty internals into `strato_core` |
 | **Salsa** | A query-based incremental computation framework used by ty for in-memory memoization |
 | **Propagation** | The process of spreading "blocking" status through the call graph from known blocking functions to their callers |
 | **Condensation graph** | A DAG formed by collapsing each SCC into a single node – enables single-pass topological propagation |

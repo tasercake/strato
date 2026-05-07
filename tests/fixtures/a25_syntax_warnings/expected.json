@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO001",
+      "severity": "error",
+      "message": "Direct blocking call to 'time.sleep' in async function 'handler'",
+      "primary_location": { "file": "valid.py", "line": 4, "column": 5 },
+      "chain": [
+        { "function": "handler", "file": "valid.py", "line": 3, "is_async": true, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "help": "Wrap in `await asyncio.to_thread(...)` or use async alternative",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [
+    {
+      "message": "Syntax error in invalid.py",
+      "file": "invalid.py"
+    }
+  ],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 1, "call_graph_nodes": 1, "call_graph_edges": 1, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

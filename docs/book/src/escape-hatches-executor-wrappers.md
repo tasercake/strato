@@ -38,33 +38,13 @@ FUNCTION is_executor_call(call: &ExprCall) -> bool:
 
     // loop.run_in_executor(executor, func, ...)
     Attribute(value, attr="run_in_executor"):
-      RETURN is_likely_event_loop(value)
+      RETURN facade.resolves_to_event_loop_run_in_executor(current_file, call)
 
     _:
       RETURN false
 
-// Syntactic heuristic – no type inference required.
-FUNCTION is_likely_event_loop(value: &Expr) -> bool:
-
-  MATCH value:
-    // Case 1: Direct call result
-    // e.g., asyncio.get_running_loop().run_in_executor(...)
-    Call(func=Attribute(value=Name("asyncio"), attr)):
-      RETURN attr IN ["get_running_loop", "get_event_loop"]
-
-    // Case 2: Variable previously assigned from asyncio loop getter
-    // e.g., loop = asyncio.get_running_loop() ... loop.run_in_executor(...)
-    Name(name):
-      binding = lookup_assignment_in_scope(name, current_function)
-      MATCH binding:
-        Assign(value=Call(func=Attribute(value=Name("asyncio"), attr))):
-          RETURN attr IN ["get_running_loop", "get_event_loop"]
-        _:
-          RETURN false
-
-    // Case 3: Anything else – not provably an event loop
-    _:
-      RETURN false
+// The facade performs the semantic check. Strato does not maintain a local
+// assignment resolver for event-loop variables.
 ```
 
 #### Synthetic Edge Rule
@@ -79,7 +59,7 @@ WHEN is_executor_call(call) is true:
   MATCH callable_arg:
     // Case 1: Direct name reference – time.sleep, my_func
     Name(name) | Attribute(value, attr):
-      callee = resolve_callee(callable_arg)
+      callee = facade.resolve_callable_reference(current_file, callable_arg)
       IF callee is Some:
         // Create SYNTHETIC edge with in_executor=true
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
@@ -87,7 +67,7 @@ WHEN is_executor_call(call) is true:
     // Case 2: functools.partial(func, arg1, ...) – unwrap to the underlying callable
     Call(func=Attribute(value=Name("partial"|"functools"), attr="partial"),
          args=[real_func, ...]):
-      callee = resolve_callee(real_func)
+      callee = facade.resolve_callable_reference(current_file, real_func)
       IF callee is Some:
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
 
@@ -104,11 +84,13 @@ WHEN is_executor_call(call) is true:
 
 **Key invariant**: The synthetic edge ensures that `time.sleep` (a phantom node with `KnownBlocking`) is connected to the calling function but with `in_executor=true`, so blocking status does NOT propagate backward through this edge.
 
+Synthetic executor edges are still counted as call-graph edges in analysis stats, and resolved blocking roots behind those edges are still counted as blocking functions found. The suppression rule affects propagation and diagnostics only; it does not erase graph facts.
+
 **Executor scope rule**: Only the CALLABLE ARGUMENT position gets `in_executor=true` protection. In `loop.run_in_executor(executor, func, arg1, arg2)`: arg[0] (executor) is NOT protected, arg[1] (func) IS protected, arg[2..] (data arguments) are NOT protected.
 
 ### Generalized Wrapper Registry
 
-> **Decision recap ([Escape Hatches](./design-overview.md#generalized-executor-wrapper-system))**: Strato v1 recognizes asyncio built-ins only. Strato v1.1 generalizes the hardcoded `run_in_executor`/`to_thread` patterns into a configurable registry and `@unblocker`, enabling user-defined executor wrappers.
+> **Decision recap ([Escape Hatches](./design-overview.md#escape-hatches))**: Strato v1 uses a generalized registry for executor wrappers. Built-in asyncio patterns, configured wrappers, and `@unblocker` annotations all feed the same model: identify the wrapper call and mark only the offloaded callable argument with `in_executor=true`.
 
 ```rust
 struct EscapeHatchRegistry {
@@ -121,30 +103,34 @@ struct EscapeHatchPattern {
     /// Which argument position contains the callable being offloaded
     /// For run_in_executor: position 1 (0=executor, 1=func)
     /// For to_thread: position 0 (0=func)
-    callable_arg_position: usize,
+    callable_param: CallableParam,
+}
+
+enum CallableParam {
+    Position(usize),
+    Keyword(String),
 }
 ```
 
-**Built-in patterns (v1)**:
+**Built-in patterns:**
 
 ```rust
 vec![
-    EscapeHatchPattern { function_name: "asyncio.to_thread", callable_arg_position: 0 },
+    EscapeHatchPattern { function_name: "asyncio.to_thread", callable_param: Position(0) },
     // run_in_executor is detected structurally (method on event loop)
     // rather than by qualified name, since the loop variable name varies
 ]
 ```
 
-**Note**: `run_in_executor` is detected structurally via `is_likely_event_loop()` rather than by qualified name. This structural detection is a special case outside the registry.
+**Note**: `run_in_executor` is detected through the facade rather than by configured qualified name, since the loop expression may be a variable, method return, or other value whose event-loop type is known only semantically. This detection is a special case outside the registry, but it still goes through `StratoTyFacade` rather than a Strato-owned local resolver.
 
 ### Configuration Schema
 
-In v1.1, users can add custom escape hatches in `pyproject.toml`:
+Users can add custom escape hatches in `pyproject.toml`:
 
 ```toml
 [tool.strato.executor-wrappers]
 "asgiref.sync.sync_to_async" = { callable_param = 0 }
-"anyio.to_thread.run_sync" = { callable_param = 0 }
 "myproject.utils.offload" = { callable_param = 0 }
 "custom.wrapper" = { callable_param = "func" }  # Keyword argument
 ```
@@ -155,6 +141,6 @@ In v1.1, users can add custom escape hatches in `pyproject.toml`:
 - **Value**: Object with `callable_param` field – integer (positional index, 0-based) or string (keyword argument name)
 - Duplicate keys are rejected as a configuration error; Strato does not apply last-key-wins semantics
 
-**The `@unblocker` decorator** provides a v1.1 alternative to configuration for first-party wrappers (see [Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
+**The `@unblocker` decorator** provides an annotation-based alternative to configuration for first-party wrappers (see [Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
 
 **Precedence**: Annotations take precedence over configuration. If a function has both `@unblocker` and a `[tool.strato.executor-wrappers]` entry, the annotation wins.
