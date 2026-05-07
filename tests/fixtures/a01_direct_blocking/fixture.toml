@@ -9,4 +9,3 @@ purpose = "detects a direct known blocking call in an async function"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

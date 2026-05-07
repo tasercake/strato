@@ -9,4 +9,3 @@ purpose = "classifies direct callable-object invocation through __call__ as STRA
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

@@ -6,8 +6,8 @@ Each executable fixture directory contains a `fixture.toml` manifest plus a sing
 - `source_files` lists Python source files walked for body analysis.
 - `config_files` lists fixture-relative configuration files.
 - `extra_files` lists non-source fixture inputs such as `.pyi` stubs.
-- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), cache mode, and expected exit code.
-- `expected.json` contains an `expectations` object keyed by run name. Each run entry declares `mode`, `assert`, and `output`.
+- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), and cache mode.
+- `expected.json` declares `exit_code`, `mode`, `assert`, and `output` for the fixture's single run.
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
 - expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 
@@ -493,7 +493,6 @@ async def handler_a():
 
 **Expected:**
 - 2 diagnostics
-- Repeated runs produce identical normalized JSON output; volatile timing fields are normalized before comparison
 - Diagnostics are ordered deterministically by file, line, column, and error code
 
 ---
@@ -514,7 +513,6 @@ async def handler():
 
 **Expected:**
 - Fresh analysis emits 1 diagnostic with error code STRATO002
-- Cached analysis emits the same diagnostic with identical location, chain, and output ordering
 - Cache state never changes diagnostic classification or suppression semantics
 
 ---
@@ -734,9 +732,8 @@ async def handler():
 ```
 
 **Expected:**
-- Default run: 0 diagnostics; unannotated first-party sync helper remains unknown
-- Configured run: 1 diagnostic with error code STRATO001
-- User config can mark a resolvable first-party callable as blocking
+- 0 diagnostics
+- Unannotated first-party sync helper remains unknown without `blocking.add`
 
 ---
 
@@ -759,9 +756,8 @@ async def handler():
 ```
 
 **Expected:**
-- Default run: 1 diagnostic for built-in `time.sleep`
-- Configured run: 0 diagnostics
-- Removing a built-in blocking entry makes that external call invisible rather than speculatively blocking
+- 1 diagnostic for built-in `time.sleep`
+- Error code: STRATO001
 
 ---
 
@@ -970,3 +966,46 @@ class BlockingValue:
 - 6 diagnostics
 - Error code: STRATO004 for binary addition, comparison, formatting, subscript, context-manager entry, and iteration
 - Classification is based on the implicit dunder edge that introduces blocking behavior
+
+---
+
+### A36: Deterministic Diagnostic Ordering Repeat
+
+Same source as A20.
+
+**Expected:**
+- 2 diagnostics
+- Normalized JSON output matches A20 when volatile timing fields are ignored
+- Diagnostics remain ordered by file, line, column, and error code
+
+---
+
+### A37: Cached Analysis Parity
+
+Same source as A21, run with cache mode `cached`.
+
+**Expected:**
+- Cached analysis emits 1 diagnostic with error code STRATO002
+- Diagnostic location, chain, and ordering match the fresh-analysis A21 fixture
+- Cache state never changes diagnostic classification or suppression semantics
+
+---
+
+### A38: Blocking Config Add Configured
+
+Same source and config as A27, run with `pyproject.toml`.
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO001
+- User config can mark a resolvable first-party callable as blocking
+
+---
+
+### A39: Blocking Config Remove Configured
+
+Same source and config as A28, run with `pyproject.toml`.
+
+**Expected:**
+- 0 diagnostics
+- Removing a built-in blocking entry makes that external call invisible rather than speculatively blocking

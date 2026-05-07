@@ -9,4 +9,3 @@ purpose = "happy-path namespace package resolved under the fixture source root"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

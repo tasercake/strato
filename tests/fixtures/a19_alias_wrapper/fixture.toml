@@ -10,4 +10,3 @@ purpose = "resolves an imported alias of a configured executor wrapper"
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
-expected_exit_code = 0

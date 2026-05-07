@@ -1,69 +1,20 @@
 {
-  "expectations": {
-    "default": {
-      "mode": "partial_json",
-      "assert": [
-        "diagnostics"
-      ],
-      "output": {
-        "version": "1.0",
-        "diagnostics": [],
-        "warnings": [],
-        "stats": {
-          "files_analyzed": 2,
-          "functions_analyzed": 2,
-          "call_graph_nodes": 2,
-          "call_graph_edges": 1,
-          "blocking_functions_found": 0,
-          "analysis_time_ms": 0
-        }
-      }
-    },
-    "blocking-add": {
-      "mode": "partial_json",
-      "assert": [
-        "diagnostics"
-      ],
-      "output": {
-        "version": "1.0",
-        "diagnostics": [
-          {
-            "code": "STRATO001",
-            "severity": "error",
-            "primary_location": {
-              "file": "main.py",
-              "line": 4,
-              "column": 5
-            },
-            "chain": [
-              {
-                "function": "handler",
-                "file": "main.py",
-                "line": 3,
-                "is_async": true,
-                "is_first_party": true
-              },
-              {
-                "function": "legacy.slow",
-                "file": "legacy.py",
-                "line": 1,
-                "is_async": false,
-                "is_first_party": true
-              }
-            ],
-            "intervention_strategy": "first-party-deepest"
-          }
-        ],
-        "warnings": [],
-        "stats": {
-          "files_analyzed": 2,
-          "functions_analyzed": 2,
-          "call_graph_nodes": 2,
-          "call_graph_edges": 1,
-          "blocking_functions_found": 1,
-          "analysis_time_ms": 0
-        }
-      }
+  "exit_code": 0,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [],
+    "warnings": [],
+    "stats": {
+      "files_analyzed": 2,
+      "functions_analyzed": 2,
+      "call_graph_nodes": 2,
+      "call_graph_edges": 1,
+      "blocking_functions_found": 0,
+      "analysis_time_ms": 0
     }
   }
 }

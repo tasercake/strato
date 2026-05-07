@@ -10,4 +10,3 @@ purpose = "loads @blocking metadata from configured .pyi stub paths"
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
-expected_exit_code = 1

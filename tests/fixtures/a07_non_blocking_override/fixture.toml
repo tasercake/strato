@@ -9,4 +9,3 @@ purpose = "lets @non_blocking suppress blocking propagation for the annotated fu
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 0

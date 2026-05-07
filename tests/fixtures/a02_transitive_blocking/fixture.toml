@@ -9,4 +9,3 @@ purpose = "selects the deepest first-party blocking call under the default inter
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

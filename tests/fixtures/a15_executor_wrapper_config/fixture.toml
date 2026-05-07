@@ -10,4 +10,3 @@ purpose = "uses pyproject executor-wrapper config to suppress the wrapped callab
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
-expected_exit_code = 0

@@ -9,4 +9,3 @@ purpose = "does not report blocking calls that are never reachable from async co
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 0

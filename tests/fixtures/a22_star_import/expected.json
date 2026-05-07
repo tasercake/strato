@@ -1,57 +1,54 @@
 {
-  "expectations": {
-    "statically-enumerable": {
-      "mode": "partial_json",
-      "assert": [
-        "diagnostics"
-      ],
-      "output": {
-        "version": "1.0",
-        "diagnostics": [
+  "exit_code": 1,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [
+      {
+        "code": "STRATO002",
+        "severity": "error",
+        "primary_location": {
+          "file": "module_a.py",
+          "line": 4,
+          "column": 5
+        },
+        "chain": [
           {
-            "code": "STRATO002",
-            "severity": "error",
-            "primary_location": {
-              "file": "module_a.py",
-              "line": 4,
-              "column": 5
-            },
-            "chain": [
-              {
-                "function": "handler",
-                "file": "main.py",
-                "line": 3,
-                "is_async": true,
-                "is_first_party": true
-              },
-              {
-                "function": "module_a.blocking_func",
-                "file": "module_a.py",
-                "line": 3,
-                "is_async": false,
-                "is_first_party": true
-              },
-              {
-                "function": "time.sleep",
-                "file": null,
-                "line": null,
-                "is_async": false,
-                "is_first_party": false
-              }
-            ],
-            "intervention_strategy": "first-party-deepest"
+            "function": "handler",
+            "file": "main.py",
+            "line": 3,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "module_a.blocking_func",
+            "file": "module_a.py",
+            "line": 3,
+            "is_async": false,
+            "is_first_party": true
+          },
+          {
+            "function": "time.sleep",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
           }
         ],
-        "warnings": [],
-        "stats": {
-          "files_analyzed": 2,
-          "functions_analyzed": 2,
-          "call_graph_nodes": 3,
-          "call_graph_edges": 2,
-          "blocking_functions_found": 1,
-          "analysis_time_ms": 0
-        }
+        "intervention_strategy": "first-party-deepest"
       }
+    ],
+    "warnings": [],
+    "stats": {
+      "files_analyzed": 2,
+      "functions_analyzed": 2,
+      "call_graph_nodes": 3,
+      "call_graph_edges": 2,
+      "blocking_functions_found": 1,
+      "analysis_time_ms": 0
     }
   }
 }

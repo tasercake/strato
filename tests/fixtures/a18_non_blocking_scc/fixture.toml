@@ -9,4 +9,3 @@ purpose = "does not let @non_blocking on one SCC entry mask an unsafe peer"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

@@ -32,7 +32,7 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=35).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=39).map(|id| format!("A{id}")).collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
     assert!(
@@ -43,37 +43,26 @@ fn acceptance_fixtures_are_well_formed() {
     assert!(
         fixtures
             .iter()
-            .any(|fixture| fixture.manifest.runs.len() > 1)
+            .all(|fixture| fixture.manifest.runs.len() == 1)
     );
     assert!(fixtures.iter().any(|fixture| {
-        fixture.expected_by_run.values().any(|expected| {
-            expected.output["diagnostics"]
-                .as_array()
-                .is_some_and(Vec::is_empty)
-        })
+        fixture.expected.output["diagnostics"]
+            .as_array()
+            .is_some_and(Vec::is_empty)
     }));
     assert!(fixtures.iter().any(|fixture| {
-        fixture.expected_by_run.values().any(|expected| {
-            expected.output["warnings"]
-                .as_array()
-                .is_some_and(|warnings| !warnings.is_empty())
-        })
+        fixture.expected.output["warnings"]
+            .as_array()
+            .is_some_and(|warnings| !warnings.is_empty())
     }));
-    assert_full_json_contract_covers_error_codes(&fixtures);
-    assert_cache_parity_fixture_is_bidirectional(&fixtures);
-    assert_determinism_fixture_repeats_same_run(&fixtures);
+    assert_full_json_contract_covers_error_codes(fixtures);
 }
 
 fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) {
     let mut covered_codes = fixtures
         .iter()
         .flat_map(|fixture| {
-            fixture
-                .manifest
-                .runs
-                .iter()
-                .filter_map(|run| fixture.expected_by_run.get(&run.name))
-                .filter(|expected| expected.mode == "full_json")
+            std::iter::once(&fixture.expected).filter(|expected| expected.mode == "full_json")
         })
         .flat_map(|expected| {
             expected.output["diagnostics"]
@@ -92,61 +81,17 @@ fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) 
     );
 }
 
-fn assert_cache_parity_fixture_is_bidirectional(fixtures: &[AcceptanceFixture]) {
-    let fixture = fixtures
-        .iter()
-        .find(|fixture| fixture.id == "A21")
-        .expect("A21 cache parity fixture exists");
-    assert_eq!(fixture.manifest.runs.len(), 2);
-    assert!(fixture.manifest.runs.iter().any(|run| run.cache == "fresh"));
-    assert!(
-        fixture
-            .manifest
-            .runs
-            .iter()
-            .any(|run| run.cache == "cached")
-    );
-    assert!(fixture.manifest.runs.iter().all(|run| {
-        fixture
-            .expected_by_run
-            .get(&run.name)
-            .is_some_and(|expected| expected.assert_sections == ["diagnostics", "warnings"])
-    }));
-}
-
-fn assert_determinism_fixture_repeats_same_run(fixtures: &[AcceptanceFixture]) {
-    let fixture = fixtures
-        .iter()
-        .find(|fixture| fixture.id == "A20")
-        .expect("A20 deterministic ordering fixture exists");
-    assert_eq!(fixture.manifest.runs.len(), 2);
-    assert!(fixture.manifest.runs.iter().all(|run| {
-        run.cache == "disabled"
-            && fixture
-                .expected_by_run
-                .get(&run.name)
-                .is_some_and(|expected| {
-                    expected.mode == "partial_json" && expected.assert_sections == ["diagnostics"]
-                })
-    }));
-}
-
 fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
-    let mut actual_outputs = Vec::new();
     for run in &fixture.manifest.runs {
+        let expected = &fixture.expected;
         let actual_run =
             strato_core::analyze_fixture_run(fixture, run).expect("analyze fixture run");
         assert_eq!(
-            actual_run.exit_code, run.expected_exit_code,
+            actual_run.exit_code, expected.exit_code,
             "{}: {} ({}) exit code",
             fixture.id, fixture.name, run.name
         );
         let actual = actual_run.json;
-        actual_outputs.push((run.name.as_str(), normalize_for_golden(&actual)));
-        let expected = fixture
-            .expected_by_run
-            .get(&run.name)
-            .expect("run expectation was loaded");
         if expected.mode == "full_json" {
             assert_eq!(
                 normalize_for_golden(&actual),
@@ -171,13 +116,6 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
                 );
             }
         }
-    }
-    if fixture.id == "A20" {
-        assert_eq!(actual_outputs.len(), 2, "A20 must run twice");
-        assert_eq!(
-            actual_outputs[0].1, actual_outputs[1].1,
-            "A20 repeat run must produce identical normalized JSON"
-        );
     }
 }
 
@@ -226,6 +164,10 @@ acceptance_fixture_test!(acceptance_a32_partial_executor_wrapper, "A32");
 acceptance_fixture_test!(acceptance_a33_method_call_resolution, "A33");
 acceptance_fixture_test!(acceptance_a34_callable_object_dunder, "A34");
 acceptance_fixture_test!(acceptance_a35_dunder_operations, "A35");
+acceptance_fixture_test!(acceptance_a36_deterministic_ordering_repeat, "A36");
+acceptance_fixture_test!(acceptance_a37_cache_parity_cached, "A37");
+acceptance_fixture_test!(acceptance_a38_blocking_config_add_configured, "A38");
+acceptance_fixture_test!(acceptance_a39_blocking_config_remove_configured, "A39");
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {

@@ -9,4 +9,3 @@ purpose = "keeps STRATO003 classification when property access appears below an 
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

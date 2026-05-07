@@ -9,4 +9,3 @@ purpose = "resolves instance, static, and class method calls through the ty faca
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

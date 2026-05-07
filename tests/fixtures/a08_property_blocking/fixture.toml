@@ -9,4 +9,3 @@ purpose = "classifies blocking descriptor access as STRATO003"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

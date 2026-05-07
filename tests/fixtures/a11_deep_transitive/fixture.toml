@@ -9,4 +9,3 @@ purpose = "preserves a deep transitive blocking chain"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1

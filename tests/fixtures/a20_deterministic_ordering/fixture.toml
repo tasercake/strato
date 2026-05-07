@@ -9,12 +9,3 @@ purpose = "orders diagnostics deterministically by source location on the first 
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1
-
-[[runs]]
-name = "repeat"
-purpose = "emits byte-for-byte identical normalized JSON on an immediate repeat run"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-expected_exit_code = 1

@@ -1,5 +1,5 @@
 id = "A28"
-name = "Blocking Config Remove"
+name = "Blocking Config Remove Default"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 
@@ -9,12 +9,3 @@ purpose = "proves the built-in database flags time.sleep before the remove overr
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1
-
-[[runs]]
-name = "blocking-remove"
-purpose = "removes a built-in blocking entry without treating the unresolved external as blocking"
-args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
-cache = "disabled"
-expected_exit_code = 0

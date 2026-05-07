@@ -1,5 +1,5 @@
 id = "A27"
-name = "Blocking Config Add"
+name = "Blocking Config Add Default"
 source_files = ["legacy.py", "main.py"]
 config_files = ["pyproject.toml"]
 
@@ -9,12 +9,3 @@ purpose = "leaves an unannotated first-party sync helper unknown without blockin
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 0
-
-[[runs]]
-name = "blocking-add"
-purpose = "marks a configured first-party function as blocking"
-args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
-cache = "disabled"
-expected_exit_code = 1

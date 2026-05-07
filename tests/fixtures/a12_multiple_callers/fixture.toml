@@ -9,4 +9,3 @@ purpose = "emits one diagnostic per async caller reaching the same blocking help
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
-expected_exit_code = 1

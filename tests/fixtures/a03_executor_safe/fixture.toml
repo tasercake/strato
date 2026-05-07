@@ -9,4 +9,3 @@ purpose = "suppresses blocking propagation through run_in_executor"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 0

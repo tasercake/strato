@@ -118,7 +118,11 @@ strato/                              # Monorepo root
 │   │   ├── a32_partial_executor_wrapper/ # A32: functools.partial executor wrapper
 │   │   ├── a33_method_call_resolution/ # A33: instance/static/class methods
 │   │   ├── a34_callable_object_dunder/ # A34: callable object __call__
-│   │   └── a35_dunder_operations/      # A35: representative STRATO004 operations
+│   │   ├── a35_dunder_operations/      # A35: representative STRATO004 operations
+│   │   ├── a36_deterministic_ordering_repeat/ # A36: deterministic repeat run
+│   │   ├── a37_cache_parity_cached/    # A37: cached parity run
+│   │   ├── a38_blocking_config_add_configured/ # A38: configured blocking.add
+│   │   └── a39_blocking_config_remove_configured/ # A39: configured blocking.remove
 │   ├── integration/                 # Rust integration tests
 │   │   ├── harness.rs               # Shared test harness
 │   │   ├── test_direct_blocking.rs

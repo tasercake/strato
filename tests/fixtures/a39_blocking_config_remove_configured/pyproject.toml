@@ -1,0 +1,2 @@
+[tool.strato.blocking]
+remove = ["time.sleep"]

@@ -10,4 +10,3 @@ purpose = "marks resolved external calls under a configured module prefix as blo
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
-expected_exit_code = 1

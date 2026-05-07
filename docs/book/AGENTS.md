@@ -12,7 +12,7 @@
 | Understand a design choice | `design-overview.md` | Section number matches chapter number |
 | Add/modify a chapter | `SUMMARY.md` | Update nav, then create/edit `.md` file |
 | Check what's out of scope | `known-limitations-scope-boundaries.md` | `open-questions-reviewers.md` |
-| Define test fixtures | `appendix-b-acceptance-test-cases.md` | Fixtures are named `a01_` through `a31_` |
+| Define test fixtures | `appendix-b-acceptance-test-cases.md` | Fixtures are named `a01_` through `a39_` |
 | Check blocking DB entries | `appendix-a-blocking-function-database.md` | `blocking-function-database-annotations.md` for design |
 
 ## CONVENTIONS

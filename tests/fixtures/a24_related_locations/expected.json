@@ -1,81 +1,78 @@
 {
-  "expectations": {
-    "default": {
-      "mode": "full_json",
-      "assert": [
-        "diagnostics",
-        "warnings",
-        "stats"
-      ],
-      "output": {
-        "version": "1.0",
-        "diagnostics": [
+  "exit_code": 1,
+  "mode": "full_json",
+  "assert": [
+    "diagnostics",
+    "warnings",
+    "stats"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [
+      {
+        "code": "STRATO002",
+        "severity": "error",
+        "message": "Transitive blocking call reachable from async context",
+        "primary_location": {
+          "file": "main.py",
+          "line": 4,
+          "column": 5
+        },
+        "related_locations": [
           {
-            "code": "STRATO002",
-            "severity": "error",
-            "message": "Transitive blocking call reachable from async context",
-            "primary_location": {
-              "file": "main.py",
-              "line": 4,
-              "column": 5
-            },
-            "related_locations": [
-              {
-                "file": "main.py",
-                "line": 6,
-                "column": 11,
-                "message": "async function handler defined here"
-              },
-              {
-                "file": "main.py",
-                "line": 3,
-                "column": 1,
-                "message": "helper defined here"
-              },
-              {
-                "file": "main.py",
-                "line": 4,
-                "column": 5,
-                "message": "blocking call: time.sleep"
-              }
-            ],
-            "chain": [
-              {
-                "function": "handler",
-                "file": "main.py",
-                "line": 6,
-                "is_async": true,
-                "is_first_party": true
-              },
-              {
-                "function": "helper",
-                "file": "main.py",
-                "line": 3,
-                "is_async": false,
-                "is_first_party": true
-              },
-              {
-                "function": "time.sleep",
-                "file": null,
-                "line": null,
-                "is_async": false,
-                "is_first_party": false
-              }
-            ],
-            "help": "Wrap the blocking call in `await asyncio.to_thread(...)` or use async alternative",
-            "intervention_strategy": "first-party-deepest"
+            "file": "main.py",
+            "line": 6,
+            "column": 11,
+            "message": "async function handler defined here"
+          },
+          {
+            "file": "main.py",
+            "line": 3,
+            "column": 1,
+            "message": "helper defined here"
+          },
+          {
+            "file": "main.py",
+            "line": 4,
+            "column": 5,
+            "message": "blocking call: time.sleep"
           }
         ],
-        "warnings": [],
-        "stats": {
-          "files_analyzed": 1,
-          "functions_analyzed": 2,
-          "call_graph_nodes": 3,
-          "call_graph_edges": 2,
-          "blocking_functions_found": 1,
-          "analysis_time_ms": 0
-        }
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 6,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "helper",
+            "file": "main.py",
+            "line": 3,
+            "is_async": false,
+            "is_first_party": true
+          },
+          {
+            "function": "time.sleep",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "help": "Wrap the blocking call in `await asyncio.to_thread(...)` or use async alternative",
+        "intervention_strategy": "first-party-deepest"
       }
+    ],
+    "warnings": [],
+    "stats": {
+      "files_analyzed": 1,
+      "functions_analyzed": 2,
+      "call_graph_nodes": 3,
+      "call_graph_edges": 2,
+      "blocking_functions_found": 1,
+      "analysis_time_ms": 0
     }
   }
 }

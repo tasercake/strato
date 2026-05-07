@@ -9,4 +9,3 @@ purpose = "happy-path star import where ty can enumerate exported names"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
-expected_exit_code = 1
