@@ -16,10 +16,23 @@ struct FixtureRunOutput {
 }
 
 fn analyze_fixture_run(
-    _fixture: &AcceptanceFixture,
-    _run: &FixtureRun,
+    fixture: &AcceptanceFixture,
+    run: &FixtureRun,
 ) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
-    Err(strato_core::AnalysisError::NotImplemented)
+    let config = if run.config == "defaults" {
+        strato_core::ConfigSource::Defaults
+    } else {
+        strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
+    };
+    let output = strato_core::analyze_path_with_options(
+        fixture.root.as_std_path(),
+        &strato_core::AnalysisOptions { config },
+    )?;
+
+    Ok(FixtureRunOutput {
+        exit_code: output.exit_code,
+        json: output.json,
+    })
 }
 
 fn fixture_root() -> Utf8PathBuf {
