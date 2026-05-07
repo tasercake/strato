@@ -46,15 +46,15 @@ fn acceptance_fixtures_are_well_formed() {
             .any(|fixture| fixture.manifest.runs.len() > 1)
     );
     assert!(fixtures.iter().any(|fixture| {
-        fixture.expected_by_path.values().any(|expected| {
-            expected["diagnostics"]
+        fixture.expected_by_run.values().any(|expected| {
+            expected.output["diagnostics"]
                 .as_array()
                 .is_some_and(Vec::is_empty)
         })
     }));
     assert!(fixtures.iter().any(|fixture| {
-        fixture.expected_by_path.values().any(|expected| {
-            expected["warnings"]
+        fixture.expected_by_run.values().any(|expected| {
+            expected.output["warnings"]
                 .as_array()
                 .is_some_and(|warnings| !warnings.is_empty())
         })
@@ -72,15 +72,15 @@ fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) 
                 .manifest
                 .runs
                 .iter()
-                .filter(|run| run.expectation.mode == "full_json")
-                .map(|run| {
-                    fixture
-                        .expected_by_path
-                        .get(&run.expectation.path)
-                        .expect("run expectation path was loaded")
-                })
+                .filter_map(|run| fixture.expected_by_run.get(&run.name))
+                .filter(|expected| expected.mode == "full_json")
         })
-        .flat_map(|expected| expected["diagnostics"].as_array().into_iter().flatten())
+        .flat_map(|expected| {
+            expected.output["diagnostics"]
+                .as_array()
+                .into_iter()
+                .flatten()
+        })
         .filter_map(|diagnostic| diagnostic["code"].as_str())
         .collect::<Vec<_>>();
 
@@ -107,8 +107,10 @@ fn assert_cache_parity_fixture_is_bidirectional(fixtures: &[AcceptanceFixture]) 
             .any(|run| run.cache == "cached")
     );
     assert!(fixture.manifest.runs.iter().all(|run| {
-        run.expectation.assert_sections == ["diagnostics", "warnings"]
-            && run.expectation.path.as_str() == "expected.json"
+        fixture
+            .expected_by_run
+            .get(&run.name)
+            .is_some_and(|expected| expected.assert_sections == ["diagnostics", "warnings"])
     }));
 }
 
@@ -119,10 +121,13 @@ fn assert_determinism_fixture_repeats_same_run(fixtures: &[AcceptanceFixture]) {
         .expect("A20 deterministic ordering fixture exists");
     assert_eq!(fixture.manifest.runs.len(), 2);
     assert!(fixture.manifest.runs.iter().all(|run| {
-        run.expectation.mode == "partial_json"
-            && run.expectation.path.as_str() == "expected.json"
-            && run.expectation.assert_sections == ["diagnostics"]
-            && run.cache == "disabled"
+        run.cache == "disabled"
+            && fixture
+                .expected_by_run
+                .get(&run.name)
+                .is_some_and(|expected| {
+                    expected.mode == "partial_json" && expected.assert_sections == ["diagnostics"]
+                })
     }));
 }
 
@@ -139,22 +144,23 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
         let actual = actual_run.json;
         actual_outputs.push((run.name.as_str(), normalize_for_golden(&actual)));
         let expected = fixture
-            .expected_by_path
-            .get(&run.expectation.path)
-            .expect("run expectation path was loaded");
-        if run.expectation.mode == "full_json" {
+            .expected_by_run
+            .get(&run.name)
+            .expect("run expectation was loaded");
+        if expected.mode == "full_json" {
             assert_eq!(
                 normalize_for_golden(&actual),
-                normalize_for_golden(expected),
+                normalize_for_golden(&expected.output),
                 "{}: {} ({})",
                 fixture.id,
                 fixture.name,
                 run.name
             );
         } else {
-            for section in &run.expectation.assert_sections {
+            for section in &expected.assert_sections {
                 let actual_section = normalize_partial_section(section, &actual[section]);
-                let expected_section = normalize_partial_section(section, &expected[section]);
+                let expected_section =
+                    normalize_partial_section(section, &expected.output[section]);
                 assert_json_subset(
                     &expected_section,
                     &actual_section,
@@ -217,6 +223,9 @@ acceptance_fixture_test!(acceptance_a29_blocking_module_prefix, "A29");
 acceptance_fixture_test!(acceptance_a30_python_version_to_thread, "A30");
 acceptance_fixture_test!(acceptance_a31_unresolved_call_precision, "A31");
 acceptance_fixture_test!(acceptance_a32_partial_executor_wrapper, "A32");
+acceptance_fixture_test!(acceptance_a33_method_call_resolution, "A33");
+acceptance_fixture_test!(acceptance_a34_callable_object_dunder, "A34");
+acceptance_fixture_test!(acceptance_a35_dunder_operations, "A35");
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {

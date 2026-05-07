@@ -23,8 +23,8 @@ pub struct AcceptanceFixture {
     pub sources: Vec<Utf8PathBuf>,
     /// Optional configuration files used by this fixture.
     pub config_files: Vec<Utf8PathBuf>,
-    /// Expected JSON outputs keyed by fixture-relative expectation path.
-    pub expected_by_path: BTreeMap<Utf8PathBuf, ExpectedOutput>,
+    /// Expected JSON outputs keyed by run name.
+    pub expected_by_run: BTreeMap<String, ExpectedOutput>,
     /// Explicit fixture invocation and assertion contract.
     pub manifest: FixtureManifest,
 }
@@ -62,24 +62,26 @@ pub struct FixtureRun {
     pub cache: String,
     /// Expected process exit code.
     pub expected_exit_code: i32,
-    /// Expected-output assertion mode and scope.
-    pub expectation: FixtureExpectation,
 }
 
-/// Expected-output assertion mode and scope.
+/// Expected-output file contents.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct FixtureExpectation {
-    /// Assertion mode: `full_json` or `partial_json`.
-    pub mode: String,
-    /// Fixture-relative JSON expectation path.
-    pub path: Utf8PathBuf,
-    /// Top-level JSON sections this run asserts.
-    #[serde(rename = "assert")]
-    pub assert_sections: Vec<String>,
+pub struct ExpectedFile {
+    /// Expectations keyed by manifest run name.
+    pub expectations: BTreeMap<String, ExpectedOutput>,
 }
 
 /// Expected analyzer JSON output for an acceptance fixture.
-pub type ExpectedOutput = Value;
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct ExpectedOutput {
+    /// Assertion mode: `full_json` or `partial_json`.
+    pub mode: String,
+    /// Top-level JSON sections this run asserts.
+    #[serde(rename = "assert")]
+    pub assert_sections: Vec<String>,
+    /// Expected analyzer JSON output.
+    pub output: Value,
+}
 
 /// Fixture loading errors.
 #[derive(Debug, Error)]
@@ -161,17 +163,11 @@ impl AcceptanceFixture {
                 source,
             }
         })?;
-        let expected_by_path = load_expected_outputs(root, &manifest)?;
-        if expected_by_path.is_empty() {
-            return Err(FixtureError::Invalid {
-                fixture: fixture_id(root),
-                message: "manifest must reference at least one expectation path".to_string(),
-            });
-        }
+        let expected_by_run = load_expected_outputs(root)?;
         let sources = manifest.source_files.clone();
         let config_files = manifest.config_files.clone();
 
-        validate_manifest(root, &config_files, &expected_by_path, &manifest)?;
+        validate_manifest(root, &config_files, &expected_by_run, &manifest)?;
 
         Ok(Self {
             id: fixture_id(root),
@@ -179,7 +175,7 @@ impl AcceptanceFixture {
             root: root.to_path_buf(),
             sources,
             config_files,
-            expected_by_path,
+            expected_by_run,
             manifest,
         })
     }
@@ -187,36 +183,25 @@ impl AcceptanceFixture {
 
 fn load_expected_outputs(
     root: &Utf8Path,
-    manifest: &FixtureManifest,
-) -> Result<BTreeMap<Utf8PathBuf, ExpectedOutput>, FixtureError> {
-    let mut outputs = BTreeMap::new();
-    for path in manifest.runs.iter().map(|run| &run.expectation.path) {
-        validate_fixture_relative_path(&fixture_id(root), "expectation.path", path)?;
-        if outputs.contains_key(path) {
-            continue;
+) -> Result<BTreeMap<String, ExpectedOutput>, FixtureError> {
+    let expected_path = root.join("expected.json");
+    let expected_text = fs::read_to_string(&expected_path).map_err(|source| FixtureError::Io {
+        path: expected_path.clone(),
+        source,
+    })?;
+    let expected = serde_json::from_str::<ExpectedFile>(&expected_text).map_err(|source| {
+        FixtureError::Json {
+            path: expected_path,
+            source,
         }
-        let expected_path = root.join(path);
-        let expected_text =
-            fs::read_to_string(&expected_path).map_err(|source| FixtureError::Io {
-                path: expected_path.clone(),
-                source,
-            })?;
-        let expected =
-            serde_json::from_str::<ExpectedOutput>(&expected_text).map_err(|source| {
-                FixtureError::Json {
-                    path: expected_path,
-                    source,
-                }
-            })?;
-        outputs.insert(path.clone(), expected);
-    }
-    Ok(outputs)
+    })?;
+    Ok(expected.expectations)
 }
 
 fn validate_manifest(
     root: &Utf8Path,
     config_files: &[Utf8PathBuf],
-    expected_by_path: &BTreeMap<Utf8PathBuf, ExpectedOutput>,
+    expected_by_run: &BTreeMap<String, ExpectedOutput>,
     manifest: &FixtureManifest,
 ) -> Result<(), FixtureError> {
     let fixture = root
@@ -258,20 +243,29 @@ fn validate_manifest(
                 message: format!("run name '{}' is duplicated", run.name),
             });
         }
-        validate_run(root, config_files, &fixture, run)?;
+        validate_run(config_files, &fixture, run)?;
+        invalid_if(
+            !expected_by_run.contains_key(&run.name),
+            &fixture,
+            format!("run '{}' has no entry in expected.json", run.name),
+        )?;
+    }
+    for run_name in expected_by_run.keys() {
+        invalid_if(
+            !run_names.contains(run_name),
+            &fixture,
+            format!("expected.json contains unknown run '{run_name}'"),
+        )?;
     }
     let location_files = expected_location_files(&manifest.source_files, &manifest.extra_files);
-    for (path, expected) in expected_by_path {
-        let requires_diagnostic_text = manifest
-            .runs
-            .iter()
-            .any(|run| run.expectation.path == *path && run.expectation.mode == "full_json");
+    for (run_name, expected) in expected_by_run {
+        validate_expected_metadata(&fixture, run_name, expected)?;
         validate_expected_json(
             root,
             &location_files,
             &fixture,
-            expected,
-            requires_diagnostic_text,
+            &expected.output,
+            expected.mode == "full_json",
         )?;
     }
     Ok(())
@@ -294,7 +288,6 @@ fn expected_location_files(
 }
 
 fn validate_run(
-    root: &Utf8Path,
     config_files: &[Utf8PathBuf],
     fixture: &str,
     run: &FixtureRun,
@@ -346,44 +339,35 @@ fn validate_run(
         fixture,
         format!("run '{}' has invalid cache mode '{}'", run.name, run.cache),
     )?;
+    Ok(())
+}
+
+fn validate_expected_metadata(
+    fixture: &str,
+    run_name: &str,
+    expected: &ExpectedOutput,
+) -> Result<(), FixtureError> {
     invalid_if(
-        !matches!(run.expectation.mode.as_str(), "full_json" | "partial_json"),
+        !matches!(expected.mode.as_str(), "full_json" | "partial_json"),
         fixture,
         format!(
-            "run '{}' has invalid expectation mode '{}'",
-            run.name, run.expectation.mode
+            "run '{run_name}' has invalid expectation mode '{}'",
+            expected.mode
         ),
     )?;
     invalid_if(
-        !root.join(&run.expectation.path).exists(),
+        expected.assert_sections.is_empty(),
         fixture,
-        format!(
-            "run '{}' expectation path '{}' does not exist",
-            run.name, run.expectation.path
-        ),
+        format!("run '{run_name}' must assert at least one JSON section"),
     )?;
-    validate_manifest_paths(
-        root,
-        fixture,
-        "expectation.path",
-        std::slice::from_ref(&run.expectation.path),
-    )?;
-    invalid_if(
-        run.expectation.assert_sections.is_empty(),
-        fixture,
-        format!("run '{}' must assert at least one JSON section", run.name),
-    )?;
-    for section in &run.expectation.assert_sections {
+    for section in &expected.assert_sections {
         invalid_if(
             !matches!(
                 section.as_str(),
                 "version" | "diagnostics" | "warnings" | "stats"
             ),
             fixture,
-            format!(
-                "run '{}' asserts unknown JSON section '{}'",
-                run.name, section
-            ),
+            format!("run '{run_name}' asserts unknown JSON section '{section}'"),
         )?;
     }
     Ok(())
@@ -468,20 +452,18 @@ fn validate_all_inputs_accounted(
     for path in &manifest.extra_files {
         insert_accounted_input(&mut accounted, fixture, path, "extra_files")?;
     }
-    for path in manifest.runs.iter().map(|run| &run.expectation.path) {
-        match accounted.get(path).copied() {
-            Some("expectation") => {}
-            Some(existing) => {
-                return Err(FixtureError::Invalid {
-                    fixture: fixture.to_string(),
-                    message: format!(
-                        "fixture input '{path}' is listed in both {existing} and expectation path"
-                    ),
-                });
-            }
-            None => {
-                accounted.insert(path.clone(), "expectation");
-            }
+    let expectation_path = Utf8PathBuf::from("expected.json");
+    match accounted.get(&expectation_path).copied() {
+        Some(existing) => {
+            return Err(FixtureError::Invalid {
+                fixture: fixture.to_string(),
+                message: format!(
+                    "fixture input '{expectation_path}' is listed in both {existing} and expected.json"
+                ),
+            });
+        }
+        None => {
+            accounted.insert(expectation_path, "expectation");
         }
     }
     for path in collect_all_files(root)? {
@@ -489,7 +471,7 @@ fn validate_all_inputs_accounted(
             !accounted.contains_key(&path),
             fixture,
             format!(
-                "fixture input '{path}' is not listed in source_files, config_files, extra_files, or a run expectation path"
+                "fixture input '{path}' is not listed in source_files, config_files, extra_files, or expected.json"
             ),
         )?;
     }
@@ -515,7 +497,7 @@ fn validate_expected_json(
     root: &Utf8Path,
     sources: &[Utf8PathBuf],
     fixture: &str,
-    expected: &ExpectedOutput,
+    expected: &Value,
     requires_diagnostic_text: bool,
 ) -> Result<(), FixtureError> {
     invalid_if(
@@ -946,6 +928,18 @@ mod tests {
         })
     }
 
+    fn valid_expected_file() -> Value {
+        json!({
+            "expectations": {
+                "default": {
+                    "mode": "partial_json",
+                    "assert": ["diagnostics"],
+                    "output": valid_expected()
+                }
+            }
+        })
+    }
+
     #[test]
     fn expected_json_requires_intervention_strategy() {
         let (_temp, root) = temp_fixture();
@@ -1044,8 +1038,11 @@ mod tests {
     fn manifest_cannot_list_fixture_toml_as_input() {
         let (_temp, root) = temp_fixture();
         let id = fixture_id(&root);
-        fs::write(root.join("expected.json"), valid_expected().to_string())
-            .expect("write expectation");
+        fs::write(
+            root.join("expected.json"),
+            valid_expected_file().to_string(),
+        )
+        .expect("write expectation");
         fs::write(
             root.join("fixture.toml"),
             format!(
@@ -1061,11 +1058,6 @@ args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
-
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]
 "#
             ),
         )
@@ -1076,8 +1068,8 @@ assert = ["diagnostics"]
     }
 
     #[test]
-    fn manifest_validation_rejects_duplicate_runs_bad_asserts_and_path_traversal() {
-        for (manifest_body, expected_message) in [
+    fn fixture_validation_rejects_duplicate_runs_bad_asserts_and_unknown_expected_runs() {
+        for (manifest_body, expected_file, expected_message) in [
             (
                 r#"[[runs]]
 name = "default"
@@ -1086,10 +1078,6 @@ args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]
 
 [[runs]]
 name = "default"
@@ -1098,11 +1086,8 @@ args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]
 "#,
+                valid_expected_file(),
                 "duplicated",
             ),
             (
@@ -1113,32 +1098,42 @@ args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["bogus"]
 "#,
+                json!({
+                    "expectations": {
+                        "default": {
+                            "mode": "partial_json",
+                            "assert": ["bogus"],
+                            "output": valid_expected()
+                        }
+                    }
+                }),
                 "unknown JSON section",
             ),
             (
                 r#"[[runs]]
 name = "default"
-purpose = "path traversal"
+purpose = "unknown expectation"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
-[runs.expectation]
-mode = "partial_json"
-path = "../expected.json"
-assert = ["diagnostics"]
 "#,
-                "fixture-relative",
+                json!({
+                    "expectations": {
+                        "other": {
+                            "mode": "partial_json",
+                            "assert": ["diagnostics"],
+                            "output": valid_expected()
+                        }
+                    }
+                }),
+                "no entry in expected.json",
             ),
         ] {
             let (_temp, root) = temp_fixture();
             let id = fixture_id(&root);
-            fs::write(root.join("expected.json"), valid_expected().to_string())
+            fs::write(root.join("expected.json"), expected_file.to_string())
                 .expect("write expectation");
             fs::write(
                 root.join("fixture.toml"),

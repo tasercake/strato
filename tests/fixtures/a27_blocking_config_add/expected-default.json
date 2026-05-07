@@ -1,6 +1,0 @@
-{
-  "version": "1.0",
-  "diagnostics": [],
-  "warnings": [],
-  "stats": { "files_analyzed": 2, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 1, "blocking_functions_found": 0, "analysis_time_ms": 0 }
-}

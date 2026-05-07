@@ -1,12 +1,13 @@
 # Appendix B: Acceptance Test Cases
 
-Each executable fixture directory contains a `fixture.toml` manifest. The manifest is the source of truth for how Strato is invoked and what the test asserts:
+Each executable fixture directory contains a `fixture.toml` manifest plus a single `expected.json` file. The manifest is the source of truth for how Strato is invoked; `expected.json` is the source of truth for what each run asserts:
 
-- Every fixture input must be accounted for exactly once by `source_files`, `config_files`, `extra_files`, or a run's expectation path.
+- Every fixture input must be accounted for exactly once by `source_files`, `config_files`, `extra_files`, or the fixture's implicit `expected.json` file.
 - `source_files` lists Python source files walked for body analysis.
 - `config_files` lists fixture-relative configuration files.
 - `extra_files` lists non-source fixture inputs such as `.pyi` stubs.
-- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), cache mode, expected exit code, and expectation path.
+- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), cache mode, and expected exit code.
+- `expected.json` contains an `expectations` object keyed by run name. Each run entry declares `mode`, `assert`, and `output`.
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
 - expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 

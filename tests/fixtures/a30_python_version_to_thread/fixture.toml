@@ -10,8 +10,3 @@ args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
 expected_exit_code = 0
-
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics", "warnings"]

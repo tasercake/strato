@@ -2,6 +2,7 @@
 
 pub mod test_fixtures;
 
+use serde_json::Value;
 use thiserror::Error;
 
 pub use test_fixtures::{AcceptanceFixture, ExpectedOutput, FixtureRun};
@@ -12,7 +13,7 @@ pub struct FixtureRunOutput {
     /// Process-style exit code for this run.
     pub exit_code: i32,
     /// JSON output emitted by the run.
-    pub json: ExpectedOutput,
+    pub json: Value,
 }
 
 /// Errors returned by the analysis scaffolding.
@@ -24,7 +25,7 @@ pub enum AnalysisError {
 }
 
 /// Runs analysis for one acceptance fixture.
-pub fn analyze_fixture(_fixture: &AcceptanceFixture) -> Result<ExpectedOutput, AnalysisError> {
+pub fn analyze_fixture(_fixture: &AcceptanceFixture) -> Result<Value, AnalysisError> {
     Err(AnalysisError::NotImplemented)
 }
 

@@ -15,7 +15,6 @@
 - Lint: `cargo clippy --workspace --all-targets`.
 - Test all active Rust tests: `cargo test`.
 - Focused fixture-loader test: `cargo test -p strato_core acceptance_fixtures_are_well_formed`.
-- Do not treat the ignored acceptance test as a required pass: `acceptance_fixtures_match_expected_diagnostics` is ignored because `analyze_fixture` returns `NotImplemented`.
 
 ## Acceptance Fixtures
 - Production-style fixture cases live in `tests/fixtures/a01_*` through `a31_*`; each fixture has one or more `.py` files plus `expected.json`.

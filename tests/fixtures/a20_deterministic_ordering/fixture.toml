@@ -11,11 +11,6 @@ config = "defaults"
 cache = "disabled"
 expected_exit_code = 1
 
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]
-
 [[runs]]
 name = "repeat"
 purpose = "emits byte-for-byte identical normalized JSON on an immediate repeat run"
@@ -23,8 +18,3 @@ args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"
 expected_exit_code = 1
-
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]

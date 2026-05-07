@@ -1,24 +1,75 @@
 {
-  "version": "1.0",
-  "diagnostics": [
-    {
-      "code": "STRATO003",
-      "severity": "error",
-      "message": "Async function 'handler' accesses blocking property 'DataFetcher.data'",
-      "primary_location": { "file": "main.py", "line": 10, "column": 22 },
-      "related_locations": [
-        { "file": "main.py", "line": 8, "column": 11, "message": "async function handler defined here" },
-        { "file": "main.py", "line": 5, "column": 9, "message": "property getter defined here" }
+  "expectations": {
+    "default": {
+      "mode": "full_json",
+      "assert": [
+        "diagnostics",
+        "warnings",
+        "stats"
       ],
-      "chain": [
-        { "function": "handler", "file": "main.py", "line": 8, "is_async": true, "is_first_party": true },
-        { "function": "DataFetcher.data", "file": "main.py", "line": 5, "is_async": false, "is_first_party": true },
-        { "function": "requests.get", "file": null, "line": null, "is_async": false, "is_first_party": false }
-      ],
-      "help": "Avoid blocking I/O in property getters used from async code",
-      "intervention_strategy": "first-party-deepest"
+      "output": {
+        "version": "1.0",
+        "diagnostics": [
+          {
+            "code": "STRATO003",
+            "severity": "error",
+            "message": "Async function 'handler' accesses blocking property 'DataFetcher.data'",
+            "primary_location": {
+              "file": "main.py",
+              "line": 10,
+              "column": 22
+            },
+            "related_locations": [
+              {
+                "file": "main.py",
+                "line": 8,
+                "column": 11,
+                "message": "async function handler defined here"
+              },
+              {
+                "file": "main.py",
+                "line": 5,
+                "column": 9,
+                "message": "property getter defined here"
+              }
+            ],
+            "chain": [
+              {
+                "function": "handler",
+                "file": "main.py",
+                "line": 8,
+                "is_async": true,
+                "is_first_party": true
+              },
+              {
+                "function": "DataFetcher.data",
+                "file": "main.py",
+                "line": 5,
+                "is_async": false,
+                "is_first_party": true
+              },
+              {
+                "function": "requests.get",
+                "file": null,
+                "line": null,
+                "is_async": false,
+                "is_first_party": false
+              }
+            ],
+            "help": "Avoid blocking I/O in property getters used from async code",
+            "intervention_strategy": "first-party-deepest"
+          }
+        ],
+        "warnings": [],
+        "stats": {
+          "files_analyzed": 1,
+          "functions_analyzed": 2,
+          "call_graph_nodes": 3,
+          "call_graph_edges": 2,
+          "blocking_functions_found": 1,
+          "analysis_time_ms": 0
+        }
+      }
     }
-  ],
-  "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 3, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  }
 }

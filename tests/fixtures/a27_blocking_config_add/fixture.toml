@@ -11,11 +11,6 @@ config = "defaults"
 cache = "disabled"
 expected_exit_code = 0
 
-[runs.expectation]
-mode = "partial_json"
-path = "expected-default.json"
-assert = ["diagnostics"]
-
 [[runs]]
 name = "blocking-add"
 purpose = "marks a configured first-party function as blocking"
@@ -23,8 +18,3 @@ args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"
 cache = "disabled"
 expected_exit_code = 1
-
-[runs.expectation]
-mode = "partial_json"
-path = "expected.json"
-assert = ["diagnostics"]

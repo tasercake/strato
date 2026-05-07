@@ -1,11 +1,29 @@
 {
-  "version": "1.0",
-  "diagnostics": [],
-  "warnings": [
-    {
-      "message": "asyncio.to_thread is unavailable for configured python_version 3.8; executor protection was not applied",
-      "file": "main.py"
+  "expectations": {
+    "python38-to-thread": {
+      "mode": "partial_json",
+      "assert": [
+        "diagnostics",
+        "warnings"
+      ],
+      "output": {
+        "version": "1.0",
+        "diagnostics": [],
+        "warnings": [
+          {
+            "message": "asyncio.to_thread is unavailable for configured python_version 3.8; executor protection was not applied",
+            "file": "main.py"
+          }
+        ],
+        "stats": {
+          "files_analyzed": 1,
+          "functions_analyzed": 1,
+          "call_graph_nodes": 1,
+          "call_graph_edges": 0,
+          "blocking_functions_found": 0,
+          "analysis_time_ms": 0
+        }
+      }
     }
-  ],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 1, "call_graph_nodes": 1, "call_graph_edges": 0, "blocking_functions_found": 0, "analysis_time_ms": 0 }
+  }
 }
