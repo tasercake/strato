@@ -2,6 +2,7 @@ id = "A15"
 name = "Executor Wrapper Config"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
+extra_files = ["mylib.py"]
 
 [[runs]]
 name = "configured-wrapper"

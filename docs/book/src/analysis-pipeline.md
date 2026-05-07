@@ -34,7 +34,7 @@ Each phase is designed for isolation, testability, and graceful degradation. Fai
      - **Stub:** `.pyi` file used for annotation/declaration metadata only
      - **First-party:** file path is under any configured source root
      - **Third-party stub:** `.pyi` file under `stub_paths`
-   - Load and normalize the effective blocking database from built-ins plus user config so Phase 4 can pre-seed external phantom nodes.
+    - Load and normalize the effective blocking database from built-ins plus user config so Phase 4 can materialize external phantom nodes deterministically when resolved calls reference them.
 
 **Output:** `FileManifest` containing:
 - `files: Vec<FileEntry>` where `FileEntry = { path, content_hash, kind: FileKind, is_first_party }`
@@ -138,7 +138,7 @@ Strato does not serialize ty facts, expose ty's internal types from `strato_core
 
 **Objective:** Construct a directed graph of all function calls in the codebase.
 
-This phase starts by pre-seeding phantom nodes from the effective `BlockingDatabase` loaded in Phase 1. It then walks the AST of every source-file function body and records call edges. Stub-file bodies are never walked. Callee resolution uses the Strato ty facade from Phase 3 and normalized Strato identifiers, not a separate Strato module resolver.
+This phase starts by preparing a deterministic phantom-node index from the effective `BlockingDatabase` loaded in Phase 1. Phantom nodes are materialized into the call graph only when a resolved call target references them. It then walks the AST of every source-file function body and records call edges. Stub-file bodies are never walked. Callee resolution uses the Strato ty facade from Phase 3 and normalized Strato identifiers, not a separate Strato module resolver.
 
 **Detailed algorithm in [Call Graph & Type Resolution](./call-graph-type-resolution.md#call-graph--type-resolution).**
 

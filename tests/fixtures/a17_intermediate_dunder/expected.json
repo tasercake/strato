@@ -6,7 +6,6 @@
       "severity": "error",
       "message": "Async function 'handler' calls blocking dunder method 'RemoteObject.__str__'",
       "primary_location": { "file": "main.py", "line": 11, "column": 12 },
-      "related_locations": [{ "file": "main.py", "line": 4, "column": 5, "message": "dunder method defined here" }],
       "chain": [
         { "function": "handler", "file": "main.py", "line": 13, "is_async": true, "is_first_party": true },
         { "function": "helper", "file": "main.py", "line": 10, "is_async": false, "is_first_party": true },
@@ -19,5 +18,5 @@
     }
   ],
   "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 4, "call_graph_nodes": 4, "call_graph_edges": 4, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  "stats": { "files_analyzed": 1, "functions_analyzed": 4, "call_graph_nodes": 5, "call_graph_edges": 4, "blocking_functions_found": 1, "analysis_time_ms": 0 }
 }

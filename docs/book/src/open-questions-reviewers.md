@@ -40,7 +40,7 @@
 
 **Question:** What call patterns do we miss? Are there common Python idioms (e.g., decorators that modify function signatures, metaclasses, descriptor protocol) that defeat call graph construction? Should we attempt heuristic detection for common dynamic patterns (e.g., `getattr(obj, "method_name")()` where `method_name` is a string literal)?
 
-**Phantom node model ([Phantom Nodes](./design-overview.md#phantom-nodes)):** For every entry in the blocking function database, we create a call graph node with no source location (`location: None`, `blocking_status: KnownBlocking`). When the facade resolves a call to external qualified aliases such as `"time.sleep"`, Strato matches any alias to the phantom node and creates an edge.
+**Phantom node model ([Phantom Nodes](./design-overview.md#phantom-nodes)):** The effective blocking database is a deterministic index. When the facade resolves a call to external qualified aliases such as `"time.sleep"`, Strato materializes the matching phantom node with no source location (`location: None`, `blocking_status: KnownBlocking`) and creates an edge.
 
 **Question:** Is the phantom node model sound? Are there cases where a phantom node could be confused with a user-defined function of the same name (e.g., a project defines its own `time.sleep`)? Should phantom nodes have a distinct type or marker to prevent this? How do we handle overloaded functions (e.g., `open()` is both a builtin and a method on file objects)?
 

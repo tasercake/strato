@@ -108,4 +108,4 @@ pub enum AnalysisError {
 }
 ```
 
-`call_graph_edges` includes synthetic executor-wrapper edges marked `in_executor=true`; those edges are graph facts even though they do not propagate blocking. `blocking_functions_found` counts resolved blocking roots even when all paths to them are executor-protected.
+`call_graph_nodes` includes first-party callables plus external phantom nodes that were resolved into the graph for this run; unused built-in database entries are not counted as analysis graph nodes. `call_graph_edges` includes synthetic executor-wrapper edges marked `in_executor=true`; those edges are graph facts even though they do not propagate blocking. `blocking_functions_found` counts unique resolved blocking roots even when all paths to them are executor-protected.

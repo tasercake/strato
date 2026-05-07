@@ -14,7 +14,7 @@ expected_exit_code = 1
 [runs.expectation]
 mode = "partial_json"
 path = "expected.json"
-assert = ["diagnostics"]
+assert = ["diagnostics", "warnings"]
 
 [[runs]]
 name = "cached"
@@ -27,4 +27,4 @@ expected_exit_code = 1
 [runs.expectation]
 mode = "partial_json"
 path = "expected.json"
-assert = ["diagnostics"]
+assert = ["diagnostics", "warnings"]

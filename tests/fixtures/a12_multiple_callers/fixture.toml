@@ -4,7 +4,7 @@ source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 
 [[runs]]
-name = "default"
+name = "async-boundary"
 purpose = "emits one diagnostic per async caller reaching the same blocking helper"
 args = ["check", ".", "--output", "json"]
 config = "pyproject.toml"

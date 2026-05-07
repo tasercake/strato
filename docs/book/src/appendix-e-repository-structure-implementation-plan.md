@@ -108,7 +108,13 @@ strato/                              # Monorepo root
 │   │   ├── a22_star_import/         # A22: star import
 │   │   ├── a23_namespace_package/   # A23: namespace package
 │   │   ├── a24_related_locations/   # A24: related locations
-│   │   └── a25_syntax_warnings/     # A25: syntax warnings
+│   │   ├── a25_syntax_warnings/     # A25: syntax warnings
+│   │   ├── a26_stub_annotation/     # A26: .pyi blocking annotation
+│   │   ├── a27_blocking_config_add/ # A27: blocking.add config
+│   │   ├── a28_blocking_config_remove/ # A28: blocking.remove config
+│   │   ├── a29_blocking_module_prefix/ # A29: blocking_modules config
+│   │   ├── a30_python_version_to_thread/ # A30: python-version escape hatch
+│   │   └── a31_unresolved_call_precision/ # A31: unknown calls skipped
 │   ├── integration/                 # Rust integration tests
 │   │   ├── harness.rs               # Shared test harness
 │   │   ├── test_direct_blocking.rs

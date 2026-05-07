@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO001",
+      "severity": "error",
+      "message": "Direct blocking call in async function",
+      "primary_location": { "file": "main.py", "line": 4, "column": 5 },
+      "chain": [
+        { "function": "handler", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
+        { "function": "legacy.slow", "file": "legacy.py", "line": 1, "is_async": false, "is_first_party": true }
+      ],
+      "help": "Offload legacy.slow or replace it with an async implementation",
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 2, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 1, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

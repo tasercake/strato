@@ -1,0 +1,17 @@
+id = "A32"
+name = "Partial Executor Wrapper"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "default"
+purpose = "suppresses blocking propagation through functools.partial passed to run_in_executor"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 0
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics", "stats"]

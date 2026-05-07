@@ -78,7 +78,7 @@ Call graph construction happens in two phases:
 
 **Phase A: Register all callable nodes**
 
-Walk the AST of every file and register a `CallGraphNode` for each function/method definition and lambda expression. Lambda nodes use deterministic synthetic names based on the enclosing callable plus the lambda expression's file position. This creates the node set before analyzing call edges.
+Walk the AST of every file and register a `CallGraphNode` for each function/method definition and lambda expression. Lambda nodes use deterministic synthetic names based on the enclosing callable plus the lambda expression's file position. This creates the node set before analyzing call edges. Lambdas passed as executor-wrapper callable arguments are still counted as callable nodes. The graph records a protected edge from the enclosing callable to the lambda node, then records edges discovered inside the lambda body as `in_executor=true`; those protected edges do not propagate diagnostics.
 
 **Phase B: Walk function bodies**
 
@@ -96,21 +96,32 @@ struct CallEdgeVisitor {
 
 impl Visitor for CallEdgeVisitor {
     fn visit_expr_call(&mut self, call: &ExprCall) {
-        let callee = self.semantics.resolve_call_target(self.file, call);
-        if let Some(target_node) = self.call_graph.node_for_target(callee) {
-            let in_executor = self.is_wrapped_in_executor(call);
-            self.call_graph.add_edge(CallEdge {
-                from: self.current_function,
-                to: target_node,
-                kind: DirectCall,
-                location: call.location,
-                in_executor,
-                via: None,
-            });
+        let is_executor_wrapper = self.is_executor_wrapper_call(call);
+        if is_executor_wrapper {
+            self.add_protected_callable_argument_edges(call);
+        } else {
+            let callee = self.semantics.resolve_call_target(self.file, call);
+            if let Some(target_node) = self.call_graph.node_for_target(callee) {
+                let edge_kind = self.edge_kind_for_call(call);
+                self.call_graph.add_edge(CallEdge {
+                    from: self.current_function,
+                    to: target_node,
+                    kind: edge_kind,
+                    location: call.location,
+                    in_executor: false,
+                    via: None,
+                });
+            }
         }
-        // Continue visiting arguments
+        // Continue visiting arguments. Executor-wrapper handling owns traversal of
+        // the protected callable argument; do not also descend into that argument
+        // normally, or lambda bodies such as asyncio.to_thread(lambda: sleep())
+        // would produce both protected and unprotected edges.
         walk_expr(self, &call.func);
-        for arg in &call.args {
+        for (index, arg) in call.args.iter().enumerate() {
+            if self.is_protected_executor_callable_arg(call, index) {
+                continue;
+            }
             walk_expr(self, arg);
         }
     }
@@ -255,19 +266,23 @@ External symbols (from third-party libraries or stdlib) are not parsed by Strato
 
 External symbols become graph nodes **only if** any facade-provided external alias appears in the effective blocking database or matches a configured `blocking_modules` prefix. These are called **phantom nodes** (nodes without source location).
 
-**Pre-seeding at Phase 4 initialization:**
+**Materialization during Phase 4:**
 
 ```rust
-for (qualified_name, status) in blocking_database {
-    if !call_graph.has_node(qualified_name) {
+for alias in facade.external_qualified_names(call_target) {
+    let status = blocking_database
+        .get(alias)
+        .copied()
+        .or_else(|| blocking_database.status_for_blocking_module_prefix(alias));
+    if let Some(status) = status {
         call_graph.add_node(CallGraphNode {
             id: next_id(),
-            qualified_name,
+            qualified_name: alias,
             kind: Function,  // Assume function unless known otherwise
             is_async: false,
             location: None,  // Phantom node
             blocking_status: status,
-        })
+        });
     }
 }
 ```

@@ -18,7 +18,7 @@
 - Do not treat the ignored acceptance test as a required pass: `acceptance_fixtures_match_expected_diagnostics` is ignored because `analyze_fixture` returns `NotImplemented`.
 
 ## Acceptance Fixtures
-- Production-style fixture cases live in `tests/fixtures/a01_*` through `a25_*`; each fixture has one or more `.py` files plus `expected.json`.
+- Production-style fixture cases live in `tests/fixtures/a01_*` through `a31_*`; each fixture has one or more `.py` files plus `expected.json`.
 - The fixture loader sorts fixture directories and source paths for deterministic tests; preserve this when changing loader behavior.
 - Some fixtures include local `pyproject.toml` with `[tool.strato.executor-wrappers]`; keep fixture config paths relative to the fixture root.
 - Expected diagnostics use stable codes: `STRATO001` direct blocking, `STRATO002` transitive blocking, `STRATO003` blocking property access, `STRATO004` blocking dunder invocation.

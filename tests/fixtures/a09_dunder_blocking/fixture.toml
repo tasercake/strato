@@ -12,6 +12,6 @@ cache = "disabled"
 expected_exit_code = 1
 
 [runs.expectation]
-mode = "partial_json"
+mode = "full_json"
 path = "expected.json"
-assert = ["diagnostics"]
+assert = ["diagnostics", "warnings", "stats"]

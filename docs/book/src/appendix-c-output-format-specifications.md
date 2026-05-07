@@ -27,8 +27,8 @@ STRATO002: Transitive blocking call reachable from async context
 
   --> example.py:7:5
    |
- 7 |     helper()
-   |     ^^^^^^^^ calls blocking function
+ 7 |     time.sleep(1)
+   |     ^^^^^^^^^^^^^ calls blocking function
    |
    = chain: handler -> helper -> time.sleep
    = help: Wrap in `await asyncio.to_thread(...)` or use async alternative
@@ -69,7 +69,7 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
       ],
       "chain": [
         {
-          "function": "string (fully qualified name)",
+          "function": "string (stable diagnostic display name)",
           "file": "string | null",
           "line": "integer | null",
           "is_async": "boolean",
@@ -97,9 +97,11 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
 }
 ```
 
-**Required Fields:** `version`, `diagnostics`, `warnings`, and `stats` are always present. Within each diagnostic: `code`, `severity`, `message`, and `primary_location` are required. `related_locations`, `chain`, and `help` are optional.
+**Required Fields:** `version`, `diagnostics`, `warnings`, and `stats` are always present. Within each diagnostic: `code`, `severity`, `message`, `primary_location`, and `intervention_strategy` are required. `related_locations`, `chain`, and `help` are optional. Full-JSON fixture comparisons cover every JSON field except volatile timing fields such as `stats.analysis_time_ms`, which are type-checked and normalized before comparison.
 
-`stats.call_graph_edges` counts semantic call-graph edges, including synthetic `in_executor=true` edges created for executor wrappers. `blocking_functions_found` counts resolved blocking roots discovered in the graph even when every path to them is protected by an executor edge. Tests that only care about diagnostics should not assert stats; stats have separate output-contract coverage.
+`chain.function` is a stable diagnostic display label, not the internal node key. It may omit the top-level `main.` module prefix for readability, while retaining module or class qualifiers when needed to disambiguate cross-file functions, methods, properties, and dunders.
+
+`stats.call_graph_nodes` counts first-party callable nodes plus external phantom nodes that are actually resolved into the graph for this run. It does not count unused built-in database entries. `stats.call_graph_edges` counts semantic call-graph edges, including synthetic `in_executor=true` edges created for executor wrappers. `blocking_functions_found` counts unique resolved blocking roots discovered in the graph even when every path to them is protected by an executor edge. Tests that only care about diagnostics should not assert stats; stats have separate output-contract coverage.
 
 **Example (A2 Test Case):**
 
@@ -116,18 +118,24 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
         "line": 7,
         "column": 5,
         "end_line": 7,
-        "end_column": 13
+        "end_column": 18
       },
       "related_locations": [
         {
           "file": "example.py",
           "line": 3,
+          "column": 11,
+          "message": "async function handler defined here"
+        },
+        {
+          "file": "example.py",
+          "line": 6,
           "column": 1,
           "message": "helper defined here"
         },
         {
           "file": "example.py",
-          "line": 4,
+          "line": 7,
           "column": 5,
           "message": "blocking call: time.sleep"
         }
@@ -136,14 +144,14 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
         {
           "function": "handler",
           "file": "example.py",
-          "line": 6,
+          "line": 3,
           "is_async": true,
           "is_first_party": true
         },
         {
           "function": "helper",
           "file": "example.py",
-          "line": 3,
+          "line": 6,
           "is_async": false,
           "is_first_party": true
         },
@@ -163,8 +171,8 @@ The diagnostic location field is `primary_location`. JSON output uses the same s
   "stats": {
     "files_analyzed": 1,
     "functions_analyzed": 2,
-    "call_graph_nodes": 2,
-    "call_graph_edges": 1,
+    "call_graph_nodes": 3,
+    "call_graph_edges": 2,
     "blocking_functions_found": 1,
     "analysis_time_ms": 15
   }
@@ -234,7 +242,7 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
             {
               "physicalLocation": {
                 "artifactLocation": { "uri": "example.py" },
-                "region": { "startLine": 7, "startColumn": 5, "endLine": 7, "endColumn": 13 }
+                "region": { "startLine": 7, "startColumn": 5, "endLine": 7, "endColumn": 18 }
               }
             }
           ],
@@ -244,7 +252,7 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
               "message": { "text": "async context entry point" },
               "physicalLocation": {
                 "artifactLocation": { "uri": "example.py" },
-                "region": { "startLine": 6 }
+                "region": { "startLine": 3 }
               }
             },
             {
@@ -252,7 +260,7 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
               "message": { "text": "helper defined here" },
               "physicalLocation": {
                 "artifactLocation": { "uri": "example.py" },
-                "region": { "startLine": 3 }
+                "region": { "startLine": 6 }
               }
             },
             {
@@ -260,7 +268,7 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
               "message": { "text": "blocking call: time.sleep" },
               "physicalLocation": {
                 "artifactLocation": { "uri": "example.py" },
-                "region": { "startLine": 4 }
+                "region": { "startLine": 7 }
               }
             }
           ],
@@ -270,29 +278,29 @@ SARIF regions use SARIF's native 1-indexed `startLine`, `startColumn`, `endLine`
                 {
                   "locations": [
                     {
-                      "physicalLocation": {
+                      "location": {
                         "message": { "text": "async function handler()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },
-                          "region": { "startLine": 6 }
+                          "region": { "startLine": 3 }
                         }
                       }
                     },
                     {
-                      "physicalLocation": {
+                      "location": {
                         "message": { "text": "calls helper()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },
-                          "region": { "startLine": 7 }
+                          "region": { "startLine": 4 }
                         }
                       }
                     },
                     {
-                      "physicalLocation": {
+                      "location": {
                         "message": { "text": "calls blocking time.sleep()" },
                         "physicalLocation": {
                           "artifactLocation": { "uri": "example.py" },
-                          "region": { "startLine": 4 }
+                          "region": { "startLine": 7 }
                         }
                       }
                     }

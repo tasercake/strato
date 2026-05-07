@@ -58,6 +58,8 @@ Wrapper names are TOML keys, so each qualified wrapper name can appear at most o
 | Missing `callable_param` | `Executor wrapper '{name}' missing required field 'callable_param'` |
 | Invalid `callable_param` | `Executor wrapper '{name}' callable_param must be an integer index or keyword name` |
 
+When `python_version` is valid but excludes a built-in escape hatch, Strato does not silently apply that escape hatch. For example, `asyncio.to_thread` under `python_version = "3.8"` emits a warning and is not marked as executor-protected. The callable argument remains a callable reference, not a direct call expression, so Strato still does not report it as direct blocking merely because protection was unavailable.
+
 ### Complete Annotated Example
 
 ```toml

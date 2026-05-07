@@ -1,0 +1,4 @@
+[tool.strato.blocking]
+add = [
+    { name = "legacy.slow", help = "Offload legacy.slow or replace it with an async implementation", category = "other" },
+]

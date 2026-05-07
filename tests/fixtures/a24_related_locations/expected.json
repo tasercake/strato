@@ -7,6 +7,7 @@
       "message": "Transitive blocking call reachable from async context",
       "primary_location": { "file": "main.py", "line": 4, "column": 5 },
       "related_locations": [
+        { "file": "main.py", "line": 6, "column": 11, "message": "async function handler defined here" },
         { "file": "main.py", "line": 3, "column": 1, "message": "helper defined here" },
         { "file": "main.py", "line": 4, "column": 5, "message": "blocking call: time.sleep" }
       ],
@@ -20,5 +21,5 @@
     }
   ],
   "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 3, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
 }

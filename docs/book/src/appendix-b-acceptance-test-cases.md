@@ -2,12 +2,15 @@
 
 Each executable fixture directory contains a `fixture.toml` manifest. The manifest is the source of truth for how Strato is invoked and what the test asserts:
 
-- `source_files` and `config_files` list every fixture input used by the run.
+- Every fixture input must be accounted for exactly once by `source_files`, `config_files`, `extra_files`, or a run's expectation path.
+- `source_files` lists Python source files walked for body analysis.
+- `config_files` lists fixture-relative configuration files.
+- `extra_files` lists non-source fixture inputs such as `.pyi` stubs.
 - each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), cache mode, expected exit code, and expectation path.
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
-- expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test.
+- expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 
-Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, `warnings`, and `stats`; semantic fixtures should not assert exact message text or stats unless that is their explicit purpose.
+Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, `warnings`, and `stats`; semantic fixtures should not assert exact message text or stats unless that is their explicit purpose. `source_files` is the source of truth for body analysis; `.py` helper files that exist only to make imports resolvable must be listed in `extra_files`, not silently analyzed.
 
 ### A1: Direct Blocking in Async (STRATO001)
 
@@ -217,7 +220,7 @@ async def handler():
 ```
 
 **Expected:**
-- 1 diagnostic in main.py
+- 1 diagnostic for the call chain entered from `main.py`
 - Error code: STRATO002
 - Related location: utils.py:3 (definition of slow_util)
 - With `first-party-deepest`, primary location is the `time.sleep(1)` call in `utils.py`
@@ -325,6 +328,7 @@ async def unsafe_handler():
 - 1 diagnostic
 - Only `unsafe_handler` flagged
 - `my_offload` is recognized as executor wrapper via `@unblocker`
+- This fixture also asserts stats to protect lambda executor graph accounting: the protected lambda and its `in_executor=true` edge are graph facts even though they do not propagate a diagnostic
 
 ---
 
@@ -488,7 +492,7 @@ async def handler_a():
 
 **Expected:**
 - 2 diagnostics
-- Repeated runs produce byte-for-byte identical output
+- Repeated runs produce identical normalized JSON output; volatile timing fields are normalized before comparison
 - Diagnostics are ordered deterministically by file, line, column, and error code
 
 ---
@@ -591,7 +595,7 @@ async def handler():
 ```
 
 **Expected JSON output:**
-This fixture intentionally uses `full_json` because related-location shape and ordering are the behavior under test.
+This fixture intentionally uses `full_json` because related-location shape and ordering are the behavior under test. A1, A8, and A9 provide the corresponding full-output contracts for STRATO001, STRATO003, and STRATO004.
 
 ```json
 {
@@ -607,6 +611,12 @@ This fixture intentionally uses `full_json` because related-location shape and o
         "column": 5
       },
       "related_locations": [
+        {
+          "file": "main.py",
+          "line": 6,
+          "column": 11,
+          "message": "async function handler defined here"
+        },
         {
           "file": "main.py",
           "line": 3,
@@ -625,12 +635,12 @@ This fixture intentionally uses `full_json` because related-location shape and o
         { "function": "helper", "file": "main.py", "line": 3, "is_async": false, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Wrap the blocking call in `await asyncio.to_thread(...)` or make the helper async-safe",
+      "help": "Wrap the blocking call in `await asyncio.to_thread(...)` or use async alternative",
       "intervention_strategy": "first-party-deepest"
     }
   ],
   "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 2, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  "stats": { "files_analyzed": 1, "functions_analyzed": 2, "call_graph_nodes": 3, "call_graph_edges": 2, "blocking_functions_found": 1, "analysis_time_ms": 0 }
 }
 ```
 
@@ -658,3 +668,201 @@ def broken(
 - 1 diagnostic from valid.py (STRATO001)
 - 1 warning: "Syntax error in invalid.py"
 - Analysis continues despite syntax errors when other source files remain analyzable
+
+---
+
+### A26: Stub Annotation Metadata
+
+**pyproject.toml:**
+
+```toml
+[tool.strato]
+stub_paths = ["stubs"]
+```
+
+**stubs/thirdparty.pyi:**
+
+```python
+from strato import blocking
+
+@blocking
+def slow() -> None: ...
+```
+
+**main.py:**
+
+```python
+from thirdparty import slow
+
+async def handler():
+    slow()
+```
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO001
+- The blocking fact comes from the configured `.pyi` stub, not from first-party source body analysis
+
+---
+
+### A27: Blocking Config Add
+
+**pyproject.toml:**
+
+```toml
+[tool.strato.blocking]
+add = [
+    { name = "legacy.slow", help = "Offload legacy.slow or replace it with an async implementation", category = "other" },
+]
+```
+
+**legacy.py:**
+
+```python
+def slow():
+    pass
+```
+
+**main.py:**
+
+```python
+from legacy import slow
+
+async def handler():
+    slow()
+```
+
+**Expected:**
+- Default run: 0 diagnostics; unannotated first-party sync helper remains unknown
+- Configured run: 1 diagnostic with error code STRATO001
+- User config can mark a resolvable first-party callable as blocking
+
+---
+
+### A28: Blocking Config Remove
+
+**pyproject.toml:**
+
+```toml
+[tool.strato.blocking]
+remove = ["time.sleep"]
+```
+
+**main.py:**
+
+```python
+import time
+
+async def handler():
+    time.sleep(1)
+```
+
+**Expected:**
+- Default run: 1 diagnostic for built-in `time.sleep`
+- Configured run: 0 diagnostics
+- Removing a built-in blocking entry makes that external call invisible rather than speculatively blocking
+
+---
+
+### A29: Blocking Module Prefix
+
+**pyproject.toml:**
+
+```toml
+[tool.strato]
+stub_paths = ["stubs"]
+
+[tool.strato.blocking]
+blocking_modules = ["legacy_mod"]
+```
+
+**stubs/legacy_mod.pyi:**
+
+```python
+def slow() -> None: ...
+```
+
+**stubs/legacy_mod_extra.pyi:**
+
+```python
+def slow() -> None: ...
+```
+
+**main.py:**
+
+```python
+import legacy_mod
+import legacy_mod_extra
+
+async def handler():
+    legacy_mod.slow()
+    legacy_mod_extra.slow()
+```
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO001
+- Module-boundary prefix matching marks `legacy_mod.slow` blocking but does not match `legacy_mod_extra.slow`
+
+---
+
+### A30: Python Version Controls `asyncio.to_thread`
+
+**pyproject.toml:**
+
+```toml
+[tool.strato]
+python_version = "3.8"
+```
+
+**main.py:**
+
+```python
+import asyncio
+import time
+
+async def handler():
+    await asyncio.to_thread(time.sleep, 1)
+```
+
+**Expected:**
+- 0 diagnostics
+- 1 warning that `asyncio.to_thread` is unavailable for Python 3.8 and executor protection was not applied
+- The wrapped callable is not treated as a direct call merely because the escape hatch is unavailable
+
+---
+
+### A31: Unresolved Calls Stay Unknown
+
+**main.py:**
+
+```python
+async def handler(callback):
+    callback()
+```
+
+**Expected:**
+- 0 diagnostics
+- 0 warnings
+- Unresolvable call targets are skipped rather than treated as blocking
+
+---
+
+### A32: `functools.partial` Executor Wrapping is Safe
+
+**Code:**
+
+```python
+import asyncio
+import time
+from functools import partial
+
+async def handler():
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, partial(time.sleep, 1))
+```
+
+**Expected:**
+- 0 diagnostics
+- `partial` imported by name is semantically resolved to `functools.partial`
+- The underlying `time.sleep` callable is recorded as protected by the executor wrapper

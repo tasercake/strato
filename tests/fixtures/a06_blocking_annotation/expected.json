@@ -6,7 +6,6 @@
       "severity": "error",
       "message": "Direct blocking call to 'custom_slow' in async function 'handler'",
       "primary_location": { "file": "main.py", "line": 8, "column": 5 },
-      "related_locations": [{ "file": "main.py", "line": 4, "column": 1, "message": "custom_slow marked blocking with @blocking" }],
       "chain": [
         { "function": "handler", "file": "main.py", "line": 7, "is_async": true, "is_first_party": true },
         { "function": "custom_slow", "file": "main.py", "line": 4, "is_async": false, "is_first_party": true }

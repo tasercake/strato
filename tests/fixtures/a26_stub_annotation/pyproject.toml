@@ -1,0 +1,2 @@
+[tool.strato]
+stub_paths = ["stubs"]

@@ -1,0 +1,5 @@
+[tool.strato]
+stub_paths = ["stubs"]
+
+[tool.strato.blocking]
+blocking_modules = ["legacy_mod"]

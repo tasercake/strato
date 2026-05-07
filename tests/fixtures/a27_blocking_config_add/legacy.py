@@ -1,0 +1,2 @@
+def slow():
+    pass

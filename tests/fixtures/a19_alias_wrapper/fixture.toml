@@ -2,6 +2,7 @@ id = "A19"
 name = "Alias Wrapper"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
+extra_files = ["mylib.py"]
 
 [[runs]]
 name = "configured-alias-wrapper"

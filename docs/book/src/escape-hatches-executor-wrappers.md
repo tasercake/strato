@@ -34,7 +34,11 @@ FUNCTION is_executor_call(call: &ExprCall) -> bool:
   MATCH call.func:
     // asyncio.to_thread(func, ...)
     Attribute(value=Name("asyncio"), attr="to_thread"):
-      RETURN true
+      IF configured_python_version >= 3.9:
+        RETURN true
+      ELSE:
+        warnings.push("asyncio.to_thread is unavailable for configured python_version; executor protection was not applied")
+        RETURN false
 
     // loop.run_in_executor(executor, func, ...)
     Attribute(value, attr="run_in_executor"):
@@ -64,23 +68,32 @@ WHEN is_executor_call(call) is true:
         // Create SYNTHETIC edge with in_executor=true
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
 
-    // Case 2: functools.partial(func, arg1, ...) – unwrap to the underlying callable
-    Call(func=Attribute(value=Name("partial"|"functools"), attr="partial"),
-         args=[real_func, ...]):
+    // Case 2: functools.partial(func, arg1, ...) – unwrap to the underlying callable.
+    // This is semantic, not syntax-only: both `functools.partial(...)` and
+    // `from functools import partial; partial(...)` must resolve to functools.partial.
+    Call(func=partial_ref, args=[real_func, ...])
+      IF facade.resolve_call_target(current_file, partial_ref) == "functools.partial":
       callee = facade.resolve_callable_reference(current_file, real_func)
       IF callee is Some:
         graph.add_edge(current_function, callee, DirectCall, in_executor=true)
 
-    // Case 3: lambda: func(arg1) – walk the lambda body with in_executor_context=true
+    // Case 3: lambda: func(arg1) – connect and walk the lambda under executor protection
     Lambda(body):
+      lambda_node = graph.node_for_lambda(callable_arg)
+      graph.add_edge(current_function, lambda_node, DirectCall, in_executor=true)
+      previous_function = current_function
+      current_function = lambda_node
       in_executor_context = true
       visit(body)  // Any edges found inside are marked in_executor=true
       in_executor_context = false
+      current_function = previous_function
 
     // Case 4: Anything else – unresolvable, skip
     _:
       PASS
 ```
+
+After the executor wrapper has handled the callable argument, normal AST traversal must skip that same argument. Otherwise lambda or partial bodies would be visited twice: once with `in_executor=true` and once as an ordinary unprotected call path.
 
 **Key invariant**: The synthetic edge ensures that `time.sleep` (a phantom node with `KnownBlocking`) is connected to the calling function but with `in_executor=true`, so blocking status does NOT propagate backward through this edge.
 
@@ -140,6 +153,7 @@ Users can add custom escape hatches in `pyproject.toml`:
 - **Key**: Qualified name of the wrapper function
 - **Value**: Object with `callable_param` field – integer (positional index, 0-based) or string (keyword argument name)
 - Duplicate keys are rejected as a configuration error; Strato does not apply last-key-wins semantics
+- Configured wrappers are trusted call-site policy. If the wrapper implementation is first-party code and should also be analyzed as ordinary source, list it in `source_files`; if it exists only to make imports resolvable for the fixture or project, keep it outside analyzed sources. Strato does not inspect a configured wrapper body to prove it truly offloads work.
 
 **The `@unblocker` decorator** provides an annotation-based alternative to configuration for first-party wrappers (see [Annotations API](./blocking-function-database-annotations.md#annotations-api-blocking-non_blocking-unblocker)).
 

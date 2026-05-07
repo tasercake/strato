@@ -5,7 +5,7 @@
 | **Event loop** | The asyncio mechanism that schedules and runs coroutines concurrently on a single thread |
 | **Call graph** | A directed graph where nodes represent functions and edges represent call relationships |
 | **SCC (Strongly Connected Component)** | A maximal set of nodes in a directed graph where every node is reachable from every other node (mutual recursion) |
-| **Phantom node** | A call graph node for an external symbol (e.g., `time.sleep`) with no source location, pre-seeded from the blocking database |
+| **Phantom node** | A call graph node for an external symbol (e.g., `time.sleep`) with no source location, materialized from the blocking database when a resolved call references it |
 | **Escape hatch** | A pattern that correctly offloads blocking work to a thread pool (e.g., `asyncio.to_thread()`, `loop.run_in_executor()`) |
 | **Intervention point** | The source location shown in a diagnostic – where the user should make a change |
 | **First-party code** | Code in the user's project (under configured source roots) |

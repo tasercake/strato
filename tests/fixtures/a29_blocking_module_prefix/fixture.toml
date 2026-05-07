@@ -1,0 +1,18 @@
+id = "A29"
+name = "Blocking Module Prefix"
+source_files = ["main.py"]
+config_files = ["pyproject.toml"]
+extra_files = ["stubs/legacy_mod.pyi", "stubs/legacy_mod_extra.pyi"]
+
+[[runs]]
+name = "blocking-module-prefix"
+purpose = "marks resolved external calls under a configured module prefix as blocking"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "partial_json"
+path = "expected.json"
+assert = ["diagnostics"]

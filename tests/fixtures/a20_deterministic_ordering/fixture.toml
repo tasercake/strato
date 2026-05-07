@@ -4,8 +4,21 @@ source_files = ["main.py"]
 config_files = []
 
 [[runs]]
-name = "default"
-purpose = "orders diagnostics deterministically by source location"
+name = "first"
+purpose = "orders diagnostics deterministically by source location on the first run"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
+expected_exit_code = 1
+
+[runs.expectation]
+mode = "full_json"
+path = "expected.json"
+assert = ["diagnostics", "warnings", "stats"]
+
+[[runs]]
+name = "repeat"
+purpose = "emits byte-for-byte identical normalized JSON on an immediate repeat run"
 args = ["check", ".", "--output", "json"]
 config = "defaults"
 cache = "disabled"

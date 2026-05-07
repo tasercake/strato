@@ -6,6 +6,9 @@
       "severity": "error",
       "message": "Direct blocking call to 'time.sleep' in async function 'handler'",
       "primary_location": { "file": "main.py", "line": 4, "column": 5 },
+      "related_locations": [
+        { "file": "main.py", "line": 3, "column": 11, "message": "async function handler defined here" }
+      ],
       "chain": [
         { "function": "handler", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
@@ -15,5 +18,5 @@
     }
   ],
   "warnings": [],
-  "stats": { "files_analyzed": 1, "functions_analyzed": 1, "call_graph_nodes": 1, "call_graph_edges": 1, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+  "stats": { "files_analyzed": 1, "functions_analyzed": 1, "call_graph_nodes": 2, "call_graph_edges": 1, "blocking_functions_found": 1, "analysis_time_ms": 0 }
 }
