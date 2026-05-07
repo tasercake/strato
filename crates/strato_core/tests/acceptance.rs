@@ -4,7 +4,23 @@ use std::sync::OnceLock;
 
 use camino::Utf8PathBuf;
 use serde_json::Value;
-use strato_core::test_fixtures::AcceptanceFixture;
+
+mod test_fixtures;
+
+use test_fixtures::{AcceptanceFixture, FixtureRun};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FixtureRunOutput {
+    exit_code: i32,
+    json: Value,
+}
+
+fn analyze_fixture_run(
+    _fixture: &AcceptanceFixture,
+    _run: &FixtureRun,
+) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
+    Err(strato_core::AnalysisError::NotImplemented)
+}
 
 fn fixture_root() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
@@ -84,8 +100,7 @@ fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) 
 fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
     for run in &fixture.manifest.runs {
         let expected = &fixture.expected;
-        let actual_run =
-            strato_core::analyze_fixture_run(fixture, run).expect("analyze fixture run");
+        let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
         assert_eq!(
             actual_run.exit_code, expected.exit_code,
             "{}: {} ({}) exit code",
