@@ -4,14 +4,12 @@
     {
       "code": "STRATO002",
       "severity": "error",
-      "message": "Transitive blocking call reachable from async context",
       "primary_location": { "file": "main.py", "line": 5, "column": 5 },
       "chain": [
         { "function": "unsafe_caller", "file": "main.py", "line": 10, "is_async": true, "is_first_party": true },
         { "function": "helper", "file": "main.py", "line": 4, "is_async": false, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Use `asyncio.to_thread(helper)` at unsafe call sites",
       "intervention_strategy": "first-party-deepest"
     }
   ],

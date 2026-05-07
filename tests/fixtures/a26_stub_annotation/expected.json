@@ -4,7 +4,6 @@
     {
       "code": "STRATO001",
       "severity": "error",
-      "message": "Direct blocking call in async function",
       "primary_location": { "file": "main.py", "line": 4, "column": 5 },
       "related_locations": [
         { "file": "main.py", "line": 3, "column": 11, "message": "async function handler defined here" },
@@ -14,7 +13,6 @@
         { "function": "handler", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
         { "function": "thirdparty.slow", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Offload the blocking stub-annotated function or provide an async alternative",
       "intervention_strategy": "first-party-deepest"
     }
   ],

@@ -2,12 +2,12 @@
   "version": "1.0",
   "diagnostics": [
     {
-      "code": "STRATO002",
+      "code": "STRATO004",
       "severity": "error",
-      "primary_location": { "file": "main.py", "line": 7, "column": 5 },
+      "primary_location": { "file": "main.py", "line": 11, "column": 5 },
       "chain": [
-        { "function": "handler", "file": "main.py", "line": 3, "is_async": true, "is_first_party": true },
-        { "function": "helper", "file": "main.py", "line": 6, "is_async": false, "is_first_party": true },
+        { "function": "handler", "file": "main.py", "line": 9, "is_async": true, "is_first_party": true },
+        { "function": "CallableWorker.__call__", "file": "main.py", "line": 5, "is_async": false, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
       "intervention_strategy": "first-party-deepest"

@@ -4,7 +4,6 @@
     {
       "code": "STRATO003",
       "severity": "error",
-      "message": "Async function 'handler' accesses blocking property 'DataFetcher.data'",
       "primary_location": { "file": "main.py", "line": 12, "column": 20 },
       "chain": [
         { "function": "handler", "file": "main.py", "line": 14, "is_async": true, "is_first_party": true },
@@ -13,7 +12,6 @@
         { "function": "load_remote", "file": "main.py", "line": 8, "is_async": false, "is_first_party": true },
         { "function": "requests.get", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Avoid blocking I/O in property getters used from async code",
       "intervention_strategy": "first-party-deepest"
     }
   ],

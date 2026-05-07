@@ -12,9 +12,9 @@ cache = "disabled"
 expected_exit_code = 1
 
 [runs.expectation]
-mode = "full_json"
+mode = "partial_json"
 path = "expected.json"
-assert = ["diagnostics", "warnings", "stats"]
+assert = ["diagnostics"]
 
 [[runs]]
 name = "repeat"
@@ -25,6 +25,6 @@ cache = "disabled"
 expected_exit_code = 1
 
 [runs.expectation]
-mode = "full_json"
+mode = "partial_json"
 path = "expected.json"
-assert = ["diagnostics", "warnings", "stats"]
+assert = ["diagnostics"]

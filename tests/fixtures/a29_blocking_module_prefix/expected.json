@@ -4,13 +4,11 @@
     {
       "code": "STRATO001",
       "severity": "error",
-      "message": "Direct blocking call in async function",
       "primary_location": { "file": "main.py", "line": 5, "column": 5 },
       "chain": [
         { "function": "handler", "file": "main.py", "line": 4, "is_async": true, "is_first_party": true },
         { "function": "legacy_mod.slow", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Offload legacy_mod.slow or configure a narrower blocking override",
       "intervention_strategy": "first-party-deepest"
     }
   ],

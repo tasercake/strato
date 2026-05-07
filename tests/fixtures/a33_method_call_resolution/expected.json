@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "diagnostics": [
+    {
+      "code": "STRATO002",
+      "severity": "error",
+      "primary_location": { "file": "main.py", "line": 6, "column": 9 },
+      "chain": [
+        { "function": "instance_handler", "file": "main.py", "line": 17, "is_async": true, "is_first_party": true },
+        { "function": "Worker.instance_slow", "file": "main.py", "line": 5, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "intervention_strategy": "first-party-deepest"
+    },
+    {
+      "code": "STRATO002",
+      "severity": "error",
+      "primary_location": { "file": "main.py", "line": 10, "column": 9 },
+      "chain": [
+        { "function": "static_handler", "file": "main.py", "line": 22, "is_async": true, "is_first_party": true },
+        { "function": "Worker.static_slow", "file": "main.py", "line": 9, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "intervention_strategy": "first-party-deepest"
+    },
+    {
+      "code": "STRATO002",
+      "severity": "error",
+      "primary_location": { "file": "main.py", "line": 14, "column": 9 },
+      "chain": [
+        { "function": "class_handler", "file": "main.py", "line": 26, "is_async": true, "is_first_party": true },
+        { "function": "Worker.class_slow", "file": "main.py", "line": 13, "is_async": false, "is_first_party": true },
+        { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
+      ],
+      "intervention_strategy": "first-party-deepest"
+    }
+  ],
+  "warnings": [],
+  "stats": { "files_analyzed": 1, "functions_analyzed": 6, "call_graph_nodes": 7, "call_graph_edges": 6, "blocking_functions_found": 1, "analysis_time_ms": 0 }
+}

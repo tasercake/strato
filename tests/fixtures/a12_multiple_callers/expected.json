@@ -4,27 +4,23 @@
     {
       "code": "STRATO002",
       "severity": "error",
-      "message": "Transitive blocking call reachable from async context",
       "primary_location": { "file": "main.py", "line": 7, "column": 5 },
       "chain": [
         { "function": "handler_a", "file": "main.py", "line": 6, "is_async": true, "is_first_party": true },
         { "function": "helper", "file": "main.py", "line": 3, "is_async": false, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Offload helper or replace its blocking operation",
       "intervention_strategy": "async-boundary"
     },
     {
       "code": "STRATO002",
       "severity": "error",
-      "message": "Transitive blocking call reachable from async context",
       "primary_location": { "file": "main.py", "line": 10, "column": 5 },
       "chain": [
         { "function": "handler_b", "file": "main.py", "line": 9, "is_async": true, "is_first_party": true },
         { "function": "helper", "file": "main.py", "line": 3, "is_async": false, "is_first_party": true },
         { "function": "time.sleep", "file": null, "line": null, "is_async": false, "is_first_party": false }
       ],
-      "help": "Offload helper or replace its blocking operation",
       "intervention_strategy": "async-boundary"
     }
   ],

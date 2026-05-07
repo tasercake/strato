@@ -17,7 +17,7 @@ Strato emits four error codes, each corresponding to a distinct pattern of block
 
 #### Message Templates
 
-The templates below are the product contract for rendered text and full-output JSON tests. Most semantic fixtures assert structured fields (`code`, `primary_location`, `chain`, `warnings`) instead of exact message strings so wording changes do not break unrelated analyzer coverage.
+The templates below are illustrative examples of the rendered text shape for each diagnostic code. The stable product contract is the structured diagnostic data (`code`, `severity`, `primary_location`, `related_locations`, `chain`, `help`, and `intervention_strategy`) plus the ordering and coordinate rules documented below. Exact prose in `message`, related-location messages, and `help` text may include context-specific names and should only be asserted by fixtures that explicitly test wording.
 
 **STRATO001:**
 ```
@@ -280,10 +280,10 @@ struct Location {
     line: usize,
     /// Start column (1-based, human-facing column number)
     column: usize,
-    /// End line (1-based)
-    end_line: usize,
-    /// End column (1-based, human-facing column number)
-    end_column: usize,
+    /// End line (1-based), present when a precise span is available
+    end_line: Option<usize>,
+    /// End column (1-based, human-facing column number), present when a precise span is available
+    end_column: Option<usize>,
 }
 
 /// A related location providing additional context.
@@ -317,10 +317,10 @@ Ruff AST nodes provide `TextRange` (byte-offset range from the start of the sour
 | Context | Convention |
 |---------|-----------|
 | Internal Ruff spans | 0-based byte offsets (from `TextRange`) |
-| Internal `Location` struct | 1-based line / 1-based column after conversion |
+| Internal `Location` struct | 1-based line / 1-based column after conversion; end line/column are optional |
 | Text output display | 1-based column |
-| JSON output | 1-based column |
-| SARIF output | 1-based column (SARIF spec requires 1-based) |
+| JSON output | 1-based column; optional end line/column when available |
+| SARIF output | 1-based column (SARIF spec requires 1-based); optional end line/column when available |
 
 ### Related Locations
 

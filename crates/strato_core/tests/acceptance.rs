@@ -32,7 +32,7 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=32).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=35).map(|id| format!("A{id}")).collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
     assert!(
@@ -119,8 +119,9 @@ fn assert_determinism_fixture_repeats_same_run(fixtures: &[AcceptanceFixture]) {
         .expect("A20 deterministic ordering fixture exists");
     assert_eq!(fixture.manifest.runs.len(), 2);
     assert!(fixture.manifest.runs.iter().all(|run| {
-        run.expectation.mode == "full_json"
+        run.expectation.mode == "partial_json"
             && run.expectation.path.as_str() == "expected.json"
+            && run.expectation.assert_sections == ["diagnostics"]
             && run.cache == "disabled"
     }));
 }
@@ -157,7 +158,10 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
                 assert_json_subset(
                     &expected_section,
                     &actual_section,
-                    &format!("{}: {} ({}) section {section}", fixture.id, fixture.name, run.name),
+                    &format!(
+                        "{}: {} ({}) section {section}",
+                        fixture.id, fixture.name, run.name
+                    ),
                 );
             }
         }

@@ -261,8 +261,18 @@ fn validate_manifest(
         validate_run(root, config_files, &fixture, run)?;
     }
     let location_files = expected_location_files(&manifest.source_files, &manifest.extra_files);
-    for expected in expected_by_path.values() {
-        validate_expected_json(root, &location_files, &fixture, expected)?;
+    for (path, expected) in expected_by_path {
+        let requires_diagnostic_text = manifest
+            .runs
+            .iter()
+            .any(|run| run.expectation.path == *path && run.expectation.mode == "full_json");
+        validate_expected_json(
+            root,
+            &location_files,
+            &fixture,
+            expected,
+            requires_diagnostic_text,
+        )?;
     }
     Ok(())
 }
@@ -506,6 +516,7 @@ fn validate_expected_json(
     sources: &[Utf8PathBuf],
     fixture: &str,
     expected: &ExpectedOutput,
+    requires_diagnostic_text: bool,
 ) -> Result<(), FixtureError> {
     invalid_if(
         !expected["version"].is_string(),
@@ -532,7 +543,7 @@ fn validate_expected_json(
 
     let source_lines = load_source_lines(root, sources)?;
     for diagnostic in diagnostics {
-        validate_diagnostic(fixture, &source_lines, diagnostic)?;
+        validate_diagnostic(fixture, &source_lines, diagnostic, requires_diagnostic_text)?;
     }
     for warning in expected["warnings"].as_array().expect("validated above") {
         validate_warning(fixture, &source_lines, warning)?;
@@ -588,13 +599,14 @@ fn validate_diagnostic(
     fixture: &str,
     source_lines: &BTreeMap<Utf8PathBuf, Vec<String>>,
     diagnostic: &Value,
+    requires_text: bool,
 ) -> Result<(), FixtureError> {
     invalid_if(
         !diagnostic.is_object(),
         fixture,
         "diagnostic must be an object".to_string(),
     )?;
-    for field in ["code", "severity", "message"] {
+    for field in ["code", "severity"] {
         invalid_if(
             !diagnostic[field].is_string(),
             fixture,
@@ -663,6 +675,18 @@ fn validate_diagnostic(
             fixture,
             "diagnostic field 'help' must be a string".to_string(),
         )?;
+    }
+    if let Some(message) = diagnostic.get("message") {
+        invalid_if(
+            !message.is_string(),
+            fixture,
+            "diagnostic field 'message' must be a string".to_string(),
+        )?;
+    } else if requires_text {
+        return Err(FixtureError::Invalid {
+            fixture: fixture.to_string(),
+            message: "diagnostic must contain string field 'message'".to_string(),
+        });
     }
     Ok(())
 }
@@ -931,9 +955,14 @@ mod tests {
             .expect("diagnostic object")
             .remove("intervention_strategy");
 
-        let err =
-            validate_expected_json(&root, &[Utf8PathBuf::from("main.py")], "fixture", &expected)
-                .expect_err("missing intervention strategy should fail");
+        let err = validate_expected_json(
+            &root,
+            &[Utf8PathBuf::from("main.py")],
+            "fixture",
+            &expected,
+            true,
+        )
+        .expect_err("missing intervention strategy should fail");
         assert!(err.to_string().contains("intervention_strategy"));
     }
 
@@ -943,10 +972,55 @@ mod tests {
         let mut expected = valid_expected();
         expected["stats"]["analysis_time_ms"] = Value::String("fast".to_string());
 
-        let err =
-            validate_expected_json(&root, &[Utf8PathBuf::from("main.py")], "fixture", &expected)
-                .expect_err("string stats should fail");
+        let err = validate_expected_json(
+            &root,
+            &[Utf8PathBuf::from("main.py")],
+            "fixture",
+            &expected,
+            true,
+        )
+        .expect_err("string stats should fail");
         assert!(err.to_string().contains("analysis_time_ms"));
+    }
+
+    #[test]
+    fn expected_json_allows_partial_diagnostics_to_omit_text_fields() {
+        let (_temp, root) = temp_fixture();
+        let mut expected = valid_expected();
+        let diagnostic = expected["diagnostics"][0]
+            .as_object_mut()
+            .expect("diagnostic object");
+        diagnostic.remove("message");
+        diagnostic.remove("help");
+
+        validate_expected_json(
+            &root,
+            &[Utf8PathBuf::from("main.py")],
+            "fixture",
+            &expected,
+            false,
+        )
+        .expect("partial diagnostic should not need text fields");
+    }
+
+    #[test]
+    fn expected_json_requires_text_fields_for_full_diagnostics() {
+        let (_temp, root) = temp_fixture();
+        let mut expected = valid_expected();
+        expected["diagnostics"][0]
+            .as_object_mut()
+            .expect("diagnostic object")
+            .remove("message");
+
+        let err = validate_expected_json(
+            &root,
+            &[Utf8PathBuf::from("main.py")],
+            "fixture",
+            &expected,
+            true,
+        )
+        .expect_err("full diagnostic should require message");
+        assert!(err.to_string().contains("message"));
     }
 
     #[test]
@@ -955,9 +1029,14 @@ mod tests {
         let mut expected = valid_expected();
         expected["warnings"] = json!([{ "message": 123, "file": "main.py" }]);
 
-        let err =
-            validate_expected_json(&root, &[Utf8PathBuf::from("main.py")], "fixture", &expected)
-                .expect_err("non-string warning message should fail");
+        let err = validate_expected_json(
+            &root,
+            &[Utf8PathBuf::from("main.py")],
+            "fixture",
+            &expected,
+            true,
+        )
+        .expect_err("non-string warning message should fail");
         assert!(err.to_string().contains("warning"));
     }
 
@@ -1083,6 +1162,7 @@ assert = ["diagnostics"]
             ("chain", json!({})),
             ("related_locations", json!("oops")),
             ("help", json!(false)),
+            ("message", json!(false)),
         ] {
             let (_temp, root) = temp_fixture();
             let mut expected = valid_expected();
@@ -1093,6 +1173,7 @@ assert = ["diagnostics"]
                 &[Utf8PathBuf::from("main.py")],
                 "fixture",
                 &expected,
+                true,
             )
             .expect_err("malformed optional diagnostic field should fail");
             assert!(err.to_string().contains(field));

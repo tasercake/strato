@@ -866,3 +866,106 @@ async def handler():
 - 0 diagnostics
 - `partial` imported by name is semantically resolved to `functools.partial`
 - The underlying `time.sleep` callable is recorded as protected by the executor wrapper
+
+---
+
+### A33: Method Call Resolution
+
+**Code:**
+
+```python
+import time
+
+class Worker:
+    def instance_slow(self):
+        time.sleep(1)
+
+    @staticmethod
+    def static_slow():
+        time.sleep(1)
+
+    @classmethod
+    def class_slow(cls):
+        time.sleep(1)
+
+async def instance_handler():
+    worker = Worker()
+    worker.instance_slow()
+
+async def static_handler():
+    Worker.static_slow()
+
+async def class_handler():
+    Worker.class_slow()
+```
+
+**Expected:**
+- 3 diagnostics
+- Error code: STRATO002 for each diagnostic
+- The facade resolves instance, static, and class method call targets to their first-party method definitions
+
+---
+
+### A34: Callable Object Dunder
+
+**Code:**
+
+```python
+import time
+
+class CallableWorker:
+    def __call__(self):
+        time.sleep(1)
+
+async def handler():
+    worker = CallableWorker()
+    worker()
+```
+
+**Expected:**
+- 1 diagnostic
+- Error code: STRATO004
+- Direct callable-object invocation resolves to `CallableWorker.__call__`
+
+---
+
+### A35: Representative Dunder Operations
+
+**Code:**
+
+```python
+import time
+
+class BlockingValue:
+    def __add__(self, other):
+        time.sleep(1)
+        return self
+
+    def __lt__(self, other):
+        time.sleep(1)
+        return False
+
+    def __format__(self, spec):
+        time.sleep(1)
+        return "value"
+
+    def __getitem__(self, key):
+        time.sleep(1)
+        return self
+
+    def __enter__(self):
+        time.sleep(1)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def __iter__(self):
+        time.sleep(1)
+        return iter(())
+```
+
+**Expected:**
+- 6 diagnostics
+- Error code: STRATO004 for binary addition, comparison, formatting, subscript, context-manager entry, and iteration
+- Classification is based on the implicit dunder edge that introduces blocking behavior

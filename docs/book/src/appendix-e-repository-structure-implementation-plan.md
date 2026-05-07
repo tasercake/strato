@@ -114,7 +114,11 @@ strato/                              # Monorepo root
 │   │   ├── a28_blocking_config_remove/ # A28: blocking.remove config
 │   │   ├── a29_blocking_module_prefix/ # A29: blocking_modules config
 │   │   ├── a30_python_version_to_thread/ # A30: python-version escape hatch
-│   │   └── a31_unresolved_call_precision/ # A31: unknown calls skipped
+│   │   ├── a31_unresolved_call_precision/ # A31: unknown calls skipped
+│   │   ├── a32_partial_executor_wrapper/ # A32: functools.partial executor wrapper
+│   │   ├── a33_method_call_resolution/ # A33: instance/static/class methods
+│   │   ├── a34_callable_object_dunder/ # A34: callable object __call__
+│   │   └── a35_dunder_operations/      # A35: representative STRATO004 operations
 │   ├── integration/                 # Rust integration tests
 │   │   ├── harness.rs               # Shared test harness
 │   │   ├── test_direct_blocking.rs
