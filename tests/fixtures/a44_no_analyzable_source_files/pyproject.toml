@@ -1,0 +1,3 @@
+[tool.strato]
+src_roots = ["src"]
+exclude = ["src/**"]

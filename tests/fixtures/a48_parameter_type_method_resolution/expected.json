@@ -1,0 +1,53 @@
+{
+  "exit_code": 1,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [
+      {
+        "code": "STRATO002",
+        "severity": "error",
+        "primary_location": {
+          "file": "main.py",
+          "line": 5,
+          "column": 9
+        },
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 10,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "use_worker",
+            "file": "main.py",
+            "line": 7,
+            "is_async": false,
+            "is_first_party": true
+          },
+          {
+            "function": "Worker.slow",
+            "file": "main.py",
+            "line": 4,
+            "is_async": false,
+            "is_first_party": true
+          },
+          {
+            "function": "time.sleep",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      }
+    ],
+    "warnings": []
+  }
+}

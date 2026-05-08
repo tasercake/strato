@@ -1,0 +1,11 @@
+id = "A42"
+name = "Keyword Executor Wrapper"
+source_files = ["main.py", "mylib.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "keyword-callable-param"
+purpose = "configured executor wrappers protect callable arguments passed by keyword"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"

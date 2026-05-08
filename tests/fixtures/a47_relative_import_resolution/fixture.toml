@@ -1,0 +1,11 @@
+id = "A47"
+name = "Relative Import Resolution"
+source_files = ["app/__init__.py", "app/handlers/__init__.py", "app/handlers/main.py", "app/services/__init__.py", "app/services/worker.py"]
+config_files = []
+
+[[runs]]
+name = "relative-import-resolution"
+purpose = "package-relative imports resolve to the correct first-party module"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"

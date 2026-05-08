@@ -1,0 +1,11 @@
+id = "A46"
+name = "Reexported Import Resolution"
+source_files = ["main.py", "pkg/__init__.py", "pkg/blocking_impl.py"]
+config_files = []
+
+[[runs]]
+name = "reexported-import-resolution"
+purpose = "re-exported imports resolve to the original first-party callable"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"

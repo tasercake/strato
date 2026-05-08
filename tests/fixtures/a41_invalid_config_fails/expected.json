@@ -1,0 +1,14 @@
+{
+  "exit_code": 2,
+  "error": "Invalid strategy: must be 'first-party-deepest' or 'async-boundary'",
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics",
+    "warnings"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [],
+    "warnings": []
+  }
+}

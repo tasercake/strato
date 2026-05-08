@@ -1,0 +1,11 @@
+id = "A50"
+name = "Inherited Property Resolution"
+source_files = ["main.py"]
+config_files = []
+
+[[runs]]
+name = "inherited-property-resolution"
+purpose = "property lookup follows class inheritance when resolving blocking getters"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"

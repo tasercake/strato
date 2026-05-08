@@ -1,0 +1,18 @@
+{
+  "exit_code": 0,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics",
+    "warnings"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [],
+    "warnings": [
+      {
+        "message": "Unresolvable import: does_not_exist",
+        "file": "main.py"
+      }
+    ]
+  }
+}

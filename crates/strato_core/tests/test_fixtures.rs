@@ -64,6 +64,9 @@ pub struct FixtureRun {
 pub struct ExpectedOutput {
     /// Expected process exit code.
     pub exit_code: i32,
+    /// Expected fatal analysis error substring, when analysis cannot produce JSON.
+    #[serde(default)]
+    pub error: Option<String>,
     /// Assertion mode: `full_json` or `partial_json`.
     pub mode: String,
     /// Top-level JSON sections this run asserts.
@@ -313,6 +316,13 @@ fn validate_expected_metadata(
     fixture: &str,
     expected: &ExpectedOutput,
 ) -> Result<(), FixtureError> {
+    if expected.error.is_some() {
+        invalid_if(
+            !matches!(expected.exit_code, 2 | 3),
+            fixture,
+            "fatal expected errors must use exit code 2 or 3".to_string(),
+        )?;
+    }
     invalid_if(
         !matches!(expected.mode.as_str(), "full_json" | "partial_json"),
         fixture,

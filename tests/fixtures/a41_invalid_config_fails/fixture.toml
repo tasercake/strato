@@ -1,0 +1,11 @@
+id = "A41"
+name = "Invalid Config Fails"
+source_files = ["main.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "invalid-intervention-strategy"
+purpose = "invalid config values fail rather than being silently accepted"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"

@@ -1,0 +1,11 @@
+id = "A44"
+name = "No Analyzable Source Files"
+source_files = ["src/excluded.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "no-analyzable-source-files"
+purpose = "returns a fatal error when configured discovery leaves no analyzable source files"
+args = ["check", ".", "--output", "json"]
+config = "pyproject.toml"
+cache = "disabled"
