@@ -1,2 +1,10 @@
 .vercel
 target/
+
+# Python
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Strato cache
+.strato_cache/
