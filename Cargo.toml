@@ -4,12 +4,16 @@ members = [
     "crates/strato_cli",
     "crates/strato_core",
 ]
+exclude = ["vendor/ruff"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.93"
+authors = ["Krishna Penukonda <krishna@penukonda.me>"]
+homepage = "https://strato.penukonda.me"
+documentation = "https://strato.penukonda.me"
 license = "MIT"
 repository = "https://github.com/tasercake/strato"
 
@@ -31,6 +35,14 @@ thiserror = "2.0.18"
 toml = "1.1.2"
 tracing = "0.1.43"
 sha2 = "0.11.0"
+ruff_cache = { path = "vendor/ruff/crates/ruff_cache" }
+ruff_annotate_snippets = { path = "vendor/ruff/crates/ruff_annotate_snippets" }
+ruff_macros = { path = "vendor/ruff/crates/ruff_macros" }
+ruff_python_ast = { path = "vendor/ruff/crates/ruff_python_ast" }
+ruff_python_parser = { path = "vendor/ruff/crates/ruff_python_parser" }
+ruff_python_trivia = { path = "vendor/ruff/crates/ruff_python_trivia" }
+ruff_source_file = { path = "vendor/ruff/crates/ruff_source_file" }
+ruff_text_size = { path = "vendor/ruff/crates/ruff_text_size" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
