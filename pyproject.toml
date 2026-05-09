@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strato"
+version = "0.1.0"
+description = "Python annotations for Strato blocking-call analysis."
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+authors = [{ name = "Krishna Penukonda", email = "krishna@penukonda.me" }]
+
+[tool.setuptools]
+package-dir = { "" = "python" }
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[tool.setuptools.package-data]
+strato = ["py.typed"]
