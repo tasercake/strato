@@ -13,6 +13,8 @@ miette.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+strato_cache = { path = "../strato_cache" }
+strato_ty_adapter = { path = "../strato_ty_adapter" }
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
