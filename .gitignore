@@ -8,3 +8,6 @@ __pycache__/
 
 # Strato cache
 .strato_cache/
+
+# Agent stuff
+.sisyphus
