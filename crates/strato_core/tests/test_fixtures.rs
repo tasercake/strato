@@ -823,6 +823,9 @@ fn collect_all_files_inner(
         let path = Utf8PathBuf::from_path_buf(entry.path())
             .map_err(|path| FixtureError::NonUtf8Path(path.display().to_string()))?;
         if path.is_dir() {
+            if path.file_name() == Some(".strato_cache") {
+                continue;
+            }
             collect_all_files_inner(fixture_root, &path, files)?;
         } else {
             let relative = path

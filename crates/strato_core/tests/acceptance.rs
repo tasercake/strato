@@ -24,10 +24,25 @@ fn analyze_fixture_run(
     } else {
         strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
     };
-    let output = strato_core::analyze_path_with_options(
-        fixture.root.as_std_path(),
-        &strato_core::AnalysisOptions { config },
-    )?;
+    let cache_enabled = match run.cache.as_str() {
+        "disabled" => Some(false),
+        "fresh" | "cached" => Some(true),
+        _ => None,
+    };
+    let mut options = strato_core::AnalysisOptions {
+        config,
+        cache_enabled,
+        clear_cache: run.cache == "fresh" || run.cache == "cached",
+        ..strato_core::AnalysisOptions::defaults()
+    };
+    let output = strato_core::analyze_path_with_options(fixture.root.as_std_path(), &options)?;
+    let output = if run.cache == "cached" {
+        options.clear_cache = false;
+        strato_core::analyze_path_with_options(fixture.root.as_std_path(), &options)?
+    } else {
+        output
+    };
+    let _ = std::fs::remove_dir_all(fixture.root.join(".strato_cache"));
 
     Ok(FixtureRunOutput {
         exit_code: output.exit_code,
@@ -121,7 +136,10 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
             };
             let error = strato_core::analyze_path_with_options(
                 fixture.root.as_std_path(),
-                &strato_core::AnalysisOptions { config },
+                &strato_core::AnalysisOptions {
+                    config,
+                    ..strato_core::AnalysisOptions::defaults()
+                },
             )
             .expect_err("expected fatal analysis error");
             assert!(
