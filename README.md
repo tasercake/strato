@@ -8,6 +8,22 @@ The core problem it addresses: async code that looks correct but actually defeat
 
 The project's key ambition goes beyond detecting direct blocking calls (which existing tools already catch). It aims to detect indirect blocking – when an async function calls a regular function that internally makes blocking calls. This requires cross-function and potentially cross-file analysis to trace call chains and determine whether a seemingly innocent function call will ultimately block the event loop.
 
+## Usage
+
+Run Strato against a Python project or directory with:
+
+```bash
+cargo run -p strato_cli -- check path/to/project
+```
+
+For example, from this repository:
+
+```bash
+cargo run -p strato_cli -- check tests/fixtures/a02_transitive_blocking --no-cache
+```
+
+Use `--output json` or `--output sarif` for machine-readable output.
+
 ---
 
 ## Motivating Example
