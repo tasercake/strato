@@ -1,12 +1,16 @@
 //! Incremental cache scaffolding for Strato.
 
-use sha2::{Digest, Sha256};
+pub mod invalidation;
+pub mod manifest;
+pub mod storage;
 
-/// Returns the lowercase SHA-256 digest for `bytes`.
-#[must_use]
-pub fn sha256_hex(bytes: &[u8]) -> String {
-    hex::encode(Sha256::digest(bytes))
-}
+pub use invalidation::CacheInvalidation;
+pub use manifest::{
+    CacheArtifact, CacheArtifactKind, CacheManifest, CachedFileKind, CachedFileResult,
+    CallSiteSyntax, ClassSyntax, DecoratorSyntax, FileSyntax, FunctionSyntax, ImportSyntax,
+    StorageKey, SyntaxLocation, sha256_hex,
+};
+pub use storage::{CacheStorage, StorageError};
 
 #[cfg(test)]
 mod tests {
