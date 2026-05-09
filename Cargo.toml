@@ -3,6 +3,7 @@ members = [
     "crates/strato_cache",
     "crates/strato_cli",
     "crates/strato_core",
+    "crates/strato_ty_adapter",
 ]
 exclude = ["vendor/ruff"]
 resolver = "3"
