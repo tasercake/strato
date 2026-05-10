@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use camino::Utf8Path;
+
 use crate::{
     graph::BlockingStatus,
     types::{CallableParam, ExecutorWrapperConfig, FileSyntax, SemanticFacts, SemanticTarget},
@@ -10,7 +12,7 @@ use crate::{
 /// Resolved annotation effects for graph construction.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AnnotationEffects {
-    /// Blocking status overrides by first-party qualified function name.
+    /// Blocking status overrides by first-party definition key.
     pub statuses: BTreeMap<String, BlockingStatus>,
     /// First-party executor wrappers declared with `@unblocker`.
     pub executor_wrappers: BTreeMap<String, ExecutorWrapperConfig>,
@@ -30,11 +32,16 @@ pub fn classify_annotations(
     semantic_facts: &SemanticFacts,
 ) -> AnnotationEffects {
     let decorators_by_function = syntax_by_path
-        .values()
-        .flat_map(|syntax| syntax.functions.iter())
-        .map(|function| {
+        .iter()
+        .flat_map(|(path, syntax)| {
+            syntax
+                .functions
+                .iter()
+                .map(move |function| (path, function))
+        })
+        .map(|(path, function)| {
             (
-                function.qualified_name.clone(),
+                definition_key(path, &function.qualified_name),
                 function
                     .decorators
                     .iter()
@@ -46,12 +53,13 @@ pub fn classify_annotations(
 
     let mut effects = AnnotationEffects::default();
 
-    for calls in semantic_facts.calls_by_path.values() {
+    for (path, calls) in &semantic_facts.calls_by_path {
         for call in calls {
             let Some(enclosing) = call.enclosing_qualified_name.as_deref() else {
                 continue;
             };
-            let Some(decorators) = decorators_by_function.get(enclosing) else {
+            let enclosing_key = definition_key(path, enclosing);
+            let Some(decorators) = decorators_by_function.get(&enclosing_key) else {
                 continue;
             };
             let expression = normalize_decorator_expression(call.expression.as_str());
@@ -65,25 +73,28 @@ pub fn classify_annotations(
                 AnnotationKind::Blocking => {
                     effects
                         .statuses
-                        .entry(enclosing.to_string())
+                        .entry(enclosing_key.clone())
                         .or_insert(BlockingStatus::KnownBlocking);
                 }
                 AnnotationKind::NonBlocking => {
                     effects
                         .statuses
-                        .insert(enclosing.to_string(), BlockingStatus::KnownNonBlocking);
+                        .insert(enclosing_key.clone(), BlockingStatus::KnownNonBlocking);
                 }
                 AnnotationKind::Unblocker { callable_param } => {
-                    effects.executor_wrappers.insert(
-                        enclosing.to_string(),
-                        ExecutorWrapperConfig { callable_param },
-                    );
+                    effects
+                        .executor_wrappers
+                        .insert(enclosing_key, ExecutorWrapperConfig { callable_param });
                 }
             }
         }
     }
 
     effects
+}
+
+fn definition_key(path: &Utf8Path, qualified_name: &str) -> String {
+    format!("{path}:{qualified_name}")
 }
 
 fn annotation_kind(target: &SemanticTarget, expression: &str) -> Option<AnnotationKind> {
