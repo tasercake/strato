@@ -81,12 +81,14 @@ impl<'a> GraphBuilder<'a> {
 
         for (path, function) in functions {
             let kind = callable_kind(function);
+            let identity = callable_identity(&path, &function.qualified_name);
             let blocking_status = first_party_blocking_status(
                 &path,
                 &function.qualified_name,
                 self.blocking_database,
             );
-            self.graph.add_node(
+            self.graph.add_node_with_identity(
+                identity.clone(),
                 function.qualified_name.clone(),
                 kind,
                 function.is_async,
@@ -95,13 +97,13 @@ impl<'a> GraphBuilder<'a> {
             );
             self.definition_index.insert(
                 format!("{path}:{}", function.qualified_name),
-                function.qualified_name.clone(),
+                identity.clone(),
             );
             self.definition_index
                 .entry(format!("{path}:{}", function.name))
-                .or_insert_with(|| function.qualified_name.clone());
+                .or_insert_with(|| identity.clone());
             self.decorators_by_function.insert(
-                function.qualified_name.clone(),
+                identity,
                 function
                     .decorators
                     .iter()
@@ -112,7 +114,7 @@ impl<'a> GraphBuilder<'a> {
     }
 
     fn add_semantic_edges(&mut self, semantic_facts: &SemanticFacts) {
-        for calls in semantic_facts.calls_by_path.values() {
+        for (path, calls) in &semantic_facts.calls_by_path {
             let mut ordered = calls.iter().collect::<Vec<_>>();
             ordered.sort_by(|left, right| {
                 left.location
@@ -120,7 +122,7 @@ impl<'a> GraphBuilder<'a> {
                     .then_with(|| left.expression.cmp(&right.expression))
             });
             for call in ordered {
-                self.add_semantic_edge(call);
+                self.add_semantic_edge(path, call);
             }
         }
     }
@@ -139,25 +141,32 @@ impl<'a> GraphBuilder<'a> {
         self.executor_wrappers.extend(effects.executor_wrappers);
     }
 
-    fn add_semantic_edge(&mut self, call: &SemanticCall) {
-        let Some(enclosing) = call.enclosing_qualified_name.as_deref() else {
+    fn add_semantic_edge(&mut self, path: &camino::Utf8Path, call: &SemanticCall) {
+        let Some(enclosing_name) = call.enclosing_qualified_name.as_deref() else {
             return;
         };
-        let Some(from) = self.graph.node_id(enclosing) else {
+        let Some(enclosing) = self
+            .definition_index
+            .get(&callable_identity(path, enclosing_name))
+            .cloned()
+        else {
             return;
         };
-        let protected = self.is_in_protected_range(enclosing, call.location);
+        let Some(from) = self.graph.node_id(&enclosing) else {
+            return;
+        };
+        let protected = self.is_in_protected_range(&enclosing, call.location);
 
         if let Some(wrapper_name) = self.executor_wrapper_name(call) {
             self.add_executor_argument_edge(from, wrapper_name.as_str(), call);
-            self.add_protected_callable_argument_range(enclosing, wrapper_name.as_str(), call);
+            self.add_protected_callable_argument_range(&enclosing, wrapper_name.as_str(), call);
             return;
         }
 
         let Some(to) = self.node_for_target(&call.target) else {
             return;
         };
-        let is_decorator = self.is_parsed_decorator(enclosing, call.expression.as_str());
+        let is_decorator = self.is_parsed_decorator(&enclosing, call.expression.as_str());
         let Some(kind) = edge_kind(call, self.graph.nodes()[to.0].kind, is_decorator) else {
             return;
         };
@@ -315,6 +324,10 @@ impl<'a> GraphBuilder<'a> {
     }
 }
 
+fn callable_identity(path: &camino::Utf8Path, qualified_name: &str) -> String {
+    format!("{path}:{qualified_name}")
+}
+
 fn stub_blocking_targets(syntax_by_path: &BTreeMap<Utf8PathBuf, FileSyntax>) -> BTreeSet<String> {
     let mut targets = BTreeSet::new();
     for (path, syntax) in syntax_by_path {
@@ -428,7 +441,7 @@ fn callable_argument(
     executor_wrappers: &BTreeMap<String, ExecutorWrapperConfig>,
 ) -> Option<String> {
     let (callee, args) = expression.trim().split_once('(')?;
-    if callee.trim() != wrapper_name {
+    if callee.trim() != callable_display_name(wrapper_name) {
         return None;
     }
     let args = args.strip_suffix(')')?;
@@ -470,7 +483,7 @@ fn callable_argument_range(
     executor_wrappers: &BTreeMap<String, ExecutorWrapperConfig>,
 ) -> Option<SourceRange> {
     let (callee, args) = expression.trim().split_once('(')?;
-    if callee.trim() != wrapper_name {
+    if callee.trim() != callable_display_name(wrapper_name) {
         return None;
     }
     let args = args.strip_suffix(')')?;
@@ -487,6 +500,10 @@ fn callable_argument_range(
         }
     };
     positional_argument_range(expression, expression_start, args, argument_index)
+}
+
+fn callable_display_name(name: &str) -> &str {
+    name.rsplit_once(':').map_or(name, |(_, display)| display)
 }
 
 fn positional_argument_range(

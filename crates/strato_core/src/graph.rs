@@ -49,7 +49,9 @@ pub enum BlockingStatus {
 pub struct CallGraphNode {
     /// Stable node id.
     pub id: NodeId,
-    /// Deterministic callable identity.
+    /// Module-scoped stable identity used for graph lookup.
+    pub identity: String,
+    /// Deterministic callable name for display.
     pub qualified_name: String,
     /// Callable kind.
     pub kind: CallableKind,
@@ -118,18 +120,18 @@ impl CallGraph {
         &self.edges
     }
 
-    /// Returns a node by qualified name.
+    /// Returns a node by lookup key.
     #[must_use]
-    pub fn node(&self, qualified_name: &str) -> Option<&CallGraphNode> {
+    pub fn node(&self, key: &str) -> Option<&CallGraphNode> {
         self.node_by_name
-            .get(qualified_name)
+            .get(key)
             .and_then(|id| self.nodes.get(id.0))
     }
 
-    /// Returns a node id by qualified name.
+    /// Returns a node id by lookup key.
     #[must_use]
-    pub fn node_id(&self, qualified_name: &str) -> Option<NodeId> {
-        self.node_by_name.get(qualified_name).copied()
+    pub fn node_id(&self, key: &str) -> Option<NodeId> {
+        self.node_by_name.get(key).copied()
     }
 
     pub(crate) fn add_node(
@@ -140,19 +142,40 @@ impl CallGraph {
         location: Option<SourceLocation>,
         blocking_status: BlockingStatus,
     ) -> NodeId {
-        if let Some(id) = self.node_by_name.get(&qualified_name) {
+        self.add_node_with_identity(
+            qualified_name.clone(),
+            qualified_name,
+            kind,
+            is_async,
+            location,
+            blocking_status,
+        )
+    }
+
+    pub(crate) fn add_node_with_identity(
+        &mut self,
+        identity: String,
+        qualified_name: String,
+        kind: CallableKind,
+        is_async: bool,
+        location: Option<SourceLocation>,
+        blocking_status: BlockingStatus,
+    ) -> NodeId {
+        if let Some(id) = self.node_by_name.get(&identity) {
             return *id;
         }
         let id = NodeId(self.nodes.len());
         self.nodes.push(CallGraphNode {
             id,
+            identity: identity.clone(),
             qualified_name: qualified_name.clone(),
             kind,
             is_async,
             location,
             blocking_status,
         });
-        self.node_by_name.insert(qualified_name, id);
+        self.node_by_name.insert(identity, id);
+        self.node_by_name.entry(qualified_name).or_insert(id);
         id
     }
 

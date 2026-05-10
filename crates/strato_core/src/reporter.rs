@@ -233,25 +233,27 @@ impl ReportContext {
                     input.project_root,
                     input.source_text_by_path,
                 ) {
-                    definitions.insert(
-                        function.qualified_name.clone(),
-                        DefinitionLocation {
-                            display_name: first_party_display_name(
-                                path,
-                                input.project_root,
-                                &function.qualified_name,
-                                function.is_async,
-                            ),
-                            location: location.clone(),
-                            is_async: function.is_async,
-                            is_first_party: syntax.kind == FileKind::Source,
-                            is_stub_blocking: syntax.kind == FileKind::Stub
-                                && function
-                                    .decorators
-                                    .iter()
-                                    .any(|decorator| is_blocking_decorator(decorator)),
-                        },
-                    );
+                    let identity = definition_key(path, &function.qualified_name);
+                    let definition = DefinitionLocation {
+                        display_name: first_party_display_name(
+                            path,
+                            input.project_root,
+                            &function.qualified_name,
+                            function.is_async,
+                        ),
+                        location: location.clone(),
+                        is_async: function.is_async,
+                        is_first_party: syntax.kind == FileKind::Source,
+                        is_stub_blocking: syntax.kind == FileKind::Stub
+                            && function
+                                .decorators
+                                .iter()
+                                .any(|decorator| is_blocking_decorator(decorator)),
+                    };
+                    definitions.insert(identity, definition.clone());
+                    definitions
+                        .entry(function.qualified_name.clone())
+                        .or_insert(definition);
                     if syntax.kind == FileKind::Stub
                         && function
                             .decorators
@@ -275,6 +277,10 @@ impl ReportContext {
         }
         Self { definitions }
     }
+}
+
+fn definition_key(path: &Utf8Path, qualified_name: &str) -> String {
+    format!("{path}:{qualified_name}")
 }
 
 fn is_blocking_decorator(decorator: &str) -> bool {
@@ -311,7 +317,10 @@ fn diagnostic_for_reason(
     context: &ReportContext,
 ) -> Option<Diagnostic> {
     let chain = async_first_party_chain(reason)?;
-    if input.graph.nodes().get(node_id.0)?.qualified_name != chain[0].function_name {
+    if input.graph.nodes().get(node_id.0)?.identity != chain[0].function_name {
+        return None;
+    }
+    if has_incoming_async_first_party_edge(input.graph, node_id) {
         return None;
     }
 
@@ -324,10 +333,10 @@ fn diagnostic_for_reason(
         context,
     )?;
     if code == ErrorCode::Strato003 {
-        adjust_bare_property_location(&mut primary_location, primary_link, input);
+        adjust_bare_property_location(&mut primary_location, primary_link, input, context);
     }
     let root = input.graph.nodes().get(reason.root_cause.0)?;
-    let root_name = root.qualified_name.as_str();
+    let root_name = root.identity.as_str();
     let message_subject = special_subject(chain, code).unwrap_or(root_name);
     let diagnostic_chain = report_chain(chain, root_name, context);
     let related_locations = related_locations(chain, code, root_name, context, &primary_location);
@@ -345,23 +354,26 @@ fn diagnostic_for_reason(
     })
 }
 
+fn has_incoming_async_first_party_edge(graph: &CallGraph, node_id: NodeId) -> bool {
+    graph.edges().iter().any(|edge| {
+        edge.to == node_id && {
+            let caller = &graph.nodes()[edge.from.0];
+            caller.is_async && caller.location.is_some() && !edge.protected
+        }
+    })
+}
+
 fn adjust_bare_property_location(
     location: &mut ReportLocation,
     link: &ChainLink,
     input: &ReportInput<'_>,
+    context: &ReportContext,
 ) {
-    let Some(definition) = link.function_name.as_str().pipe(|name| {
-        input.syntax_by_path.values().find_map(|syntax| {
-            syntax
-                .functions
-                .iter()
-                .find(|function| function.qualified_name == name)
-                .map(|_| syntax.path.clone())
-        })
-    }) else {
+    let Some(definition) = context.definitions.get(&link.function_name) else {
         return;
     };
-    let Some(source) = input.source_text_by_path.get(&definition) else {
+    let path = Utf8PathBuf::from(input.project_root).join(&definition.location.file);
+    let Some(source) = input.source_text_by_path.get(&path) else {
         return;
     };
     let Some(source_line) = source.lines().nth(location.line.saturating_sub(1)) else {
@@ -386,13 +398,6 @@ fn adjust_bare_property_location(
         location.column = leading + 1;
     }
 }
-
-trait Pipe: Sized {
-    fn pipe<T>(self, f: impl FnOnce(Self) -> T) -> T {
-        f(self)
-    }
-}
-impl<T> Pipe for T {}
 
 fn special_subject(chain: &[ChainLink], code: ErrorCode) -> Option<&str> {
     let edge_kind = match code {
@@ -748,6 +753,7 @@ fn first_party_display_name(
 }
 
 fn display_name(name: &str) -> String {
+    let name = name.rsplit_once(':').map_or(name, |(_, name)| name);
     name.strip_prefix("main.").unwrap_or(name).to_string()
 }
 

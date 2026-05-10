@@ -228,10 +228,10 @@ fn prepend_edge(
     let target_node = &graph.nodes()[edge.to.0];
     let mut chain_links = Vec::with_capacity(tail_reason.chain_links.len() + 1);
     chain_links.push(ChainLink {
-        function_name: source_node.qualified_name.clone(),
+        function_name: source_node.identity.clone(),
         function_location: source_node.location,
         call_site_location: Some(edge.location),
-        callee_name: target_node.qualified_name.clone(),
+        callee_name: target_node.identity.clone(),
         edge_kind: edge.kind,
         is_async: source_node.is_async,
         is_first_party: source_node.location.is_some(),
