@@ -76,7 +76,7 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=51).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=53).map(|id| format!("A{id}")).collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
     assert!(
@@ -245,6 +245,11 @@ acceptance_fixture_test!(acceptance_a48_parameter_type_method_resolution, "A48")
 acceptance_fixture_test!(acceptance_a49_stub_method_annotation, "A49");
 acceptance_fixture_test!(acceptance_a50_inherited_property_resolution, "A50");
 acceptance_fixture_test!(acceptance_a51_unresolved_import_precision, "A51");
+acceptance_fixture_test!(acceptance_a52_same_class_methods_across_modules, "A52");
+acceptance_fixture_test!(
+    acceptance_a53_same_class_methods_across_modules_positive,
+    "A53"
+);
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {
