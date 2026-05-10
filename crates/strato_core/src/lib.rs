@@ -48,8 +48,10 @@ pub enum AnalysisError {
 /// Configuration source for an analysis run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigSource {
-    /// Use built-in defaults only.
+    /// Auto-discover configuration from pyproject.toml, falling back to built-in defaults.
     Defaults,
+    /// Use built-in defaults only.
+    BuiltInDefaults,
     /// Load configuration from this path.
     Path(PathBuf),
 }

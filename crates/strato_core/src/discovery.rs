@@ -78,8 +78,18 @@ pub fn load_config(
     source: &ConfigSource,
 ) -> Result<StratoConfig, DiscoverError> {
     match source {
-        ConfigSource::Defaults => Ok(StratoConfig::defaults(analysis_root.to_path_buf())),
+        ConfigSource::Defaults => load_auto_config(analysis_root),
+        ConfigSource::BuiltInDefaults => Ok(StratoConfig::defaults(analysis_root.to_path_buf())),
         ConfigSource::Path(path) => load_config_path(&normalize_path(path)?),
+    }
+}
+
+fn load_auto_config(analysis_root: &Utf8Path) -> Result<StratoConfig, DiscoverError> {
+    let pyproject = analysis_root.join("pyproject.toml");
+    if pyproject.exists() {
+        load_config_path(&pyproject)
+    } else {
+        Ok(StratoConfig::defaults(analysis_root.to_path_buf()))
     }
 }
 

@@ -297,7 +297,8 @@ fn validate_run(
         ),
     )?;
     invalid_if(
-        run.config != "defaults" && !config_files.iter().any(|path| path == run.config.as_str()),
+        !matches!(run.config.as_str(), "defaults" | "builtins")
+            && !config_files.iter().any(|path| path == run.config.as_str()),
         fixture,
         format!(
             "run '{}' references undeclared config '{}'",

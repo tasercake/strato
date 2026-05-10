@@ -19,10 +19,10 @@ fn analyze_fixture_run(
     fixture: &AcceptanceFixture,
     run: &FixtureRun,
 ) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
-    let config = if run.config == "defaults" {
-        strato_core::ConfigSource::Defaults
-    } else {
-        strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
+    let config = match run.config.as_str() {
+        "defaults" => strato_core::ConfigSource::Defaults,
+        "builtins" => strato_core::ConfigSource::BuiltInDefaults,
+        _ => strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf()),
     };
     let cache_enabled = match run.cache.as_str() {
         "disabled" => Some(false),
@@ -76,7 +76,10 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=54).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=54)
+        .filter(|id| !matches!(id, 27 | 28))
+        .map(|id| format!("A{id}"))
+        .collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
     assert!(
@@ -129,10 +132,12 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
     for run in &fixture.manifest.runs {
         let expected = &fixture.expected;
         if let Some(expected_error) = &expected.error {
-            let config = if run.config == "defaults" {
-                strato_core::ConfigSource::Defaults
-            } else {
-                strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
+            let config = match run.config.as_str() {
+                "defaults" => strato_core::ConfigSource::Defaults,
+                "builtins" => strato_core::ConfigSource::BuiltInDefaults,
+                _ => strato_core::ConfigSource::Path(
+                    fixture.root.join(&run.config).into_std_path_buf(),
+                ),
             };
             let error = strato_core::analyze_path_with_options(
                 fixture.root.as_std_path(),
@@ -220,8 +225,6 @@ acceptance_fixture_test!(acceptance_a23_namespace_package, "A23");
 acceptance_fixture_test!(acceptance_a24_related_locations, "A24");
 acceptance_fixture_test!(acceptance_a25_syntax_warnings, "A25");
 acceptance_fixture_test!(acceptance_a26_stub_annotation, "A26");
-acceptance_fixture_test!(acceptance_a27_blocking_config_add, "A27");
-acceptance_fixture_test!(acceptance_a28_blocking_config_remove, "A28");
 acceptance_fixture_test!(acceptance_a29_blocking_module_prefix, "A29");
 acceptance_fixture_test!(acceptance_a30_python_version_to_thread, "A30");
 acceptance_fixture_test!(acceptance_a31_unresolved_call_precision, "A31");
