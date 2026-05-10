@@ -76,7 +76,7 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=53).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=54).map(|id| format!("A{id}")).collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
     assert!(
@@ -250,6 +250,7 @@ acceptance_fixture_test!(
     acceptance_a53_same_class_methods_across_modules_positive,
     "A53"
 );
+acceptance_fixture_test!(acceptance_a54_auto_pyproject_config, "A54");
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {

@@ -1,0 +1,12 @@
+{
+  "exit_code": 0,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,11 @@
+id = "A54"
+name = "Auto Pyproject Config"
+source_files = ["blocked.py", "safe.py"]
+config_files = ["pyproject.toml"]
+
+[[runs]]
+name = "auto-pyproject-config"
+purpose = "auto-loads pyproject.toml exclude config when --config is omitted"
+args = ["check", ".", "--output", "json"]
+config = "defaults"
+cache = "disabled"
