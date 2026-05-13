@@ -3,9 +3,8 @@ name = "Cache Parity Fresh"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "fresh"
 purpose = "records the fresh-analysis diagnostic used for cache parity"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "fresh"

@@ -28,6 +28,7 @@ pub struct AcceptanceFixture {
 
 /// Explicit fixture invocation and assertion contract.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FixtureManifest {
     /// Appendix B identifier, for example `A1`.
     pub id: String,
@@ -40,12 +41,13 @@ pub struct FixtureManifest {
     /// Other fixture inputs, such as stubs or helper package metadata.
     #[serde(default)]
     pub extra_files: Vec<Utf8PathBuf>,
-    /// Named analyzer runs over this fixture.
-    pub runs: Vec<FixtureRun>,
+    /// Analyzer run over this fixture.
+    pub run: FixtureRun,
 }
 
 /// One explicit analyzer run over a fixture.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FixtureRun {
     /// Stable run name within the fixture.
     pub name: String,
@@ -53,8 +55,6 @@ pub struct FixtureRun {
     pub purpose: String,
     /// CLI arguments, excluding the executable name.
     pub args: Vec<String>,
-    /// Configuration source: `defaults` or a fixture-relative config path.
-    pub config: String,
     /// Cache mode for this run.
     pub cache: String,
 }
@@ -160,7 +160,7 @@ impl AcceptanceFixture {
         let sources = manifest.source_files.clone();
         let config_files = manifest.config_files.clone();
 
-        validate_manifest(root, &config_files, &expected, &manifest)?;
+        validate_manifest(root, &expected, &manifest)?;
 
         Ok(Self {
             id: fixture_id(root),
@@ -191,7 +191,6 @@ fn load_expected_output(root: &Utf8Path) -> Result<ExpectedOutput, FixtureError>
 
 fn validate_manifest(
     root: &Utf8Path,
-    config_files: &[Utf8PathBuf],
     expected: &ExpectedOutput,
     manifest: &FixtureManifest,
 ) -> Result<(), FixtureError> {
@@ -220,15 +219,7 @@ fn validate_manifest(
     validate_manifest_paths(root, &fixture, "config_files", &manifest.config_files)?;
     validate_manifest_paths(root, &fixture, "extra_files", &manifest.extra_files)?;
     validate_all_inputs_accounted(root, &fixture, manifest)?;
-    invalid_if(
-        manifest.runs.len() != 1,
-        &fixture,
-        "manifest must define exactly one run".to_string(),
-    )?;
-
-    for run in &manifest.runs {
-        validate_run(config_files, &fixture, run)?;
-    }
+    validate_run(&fixture, &manifest.run)?;
     let location_files = expected_location_files(&manifest.source_files, &manifest.extra_files);
     validate_expected_metadata(&fixture, expected)?;
     validate_expected_json(
@@ -257,11 +248,7 @@ fn expected_location_files(
     files
 }
 
-fn validate_run(
-    config_files: &[Utf8PathBuf],
-    fixture: &str,
-    run: &FixtureRun,
-) -> Result<(), FixtureError> {
+fn validate_run(fixture: &str, run: &FixtureRun) -> Result<(), FixtureError> {
     invalid_if(
         run.name.is_empty(),
         fixture,
@@ -294,15 +281,6 @@ fn validate_run(
         format!(
             "run '{}' must request JSON output with '--output json'",
             run.name
-        ),
-    )?;
-    invalid_if(
-        !matches!(run.config.as_str(), "defaults" | "builtins")
-            && !config_files.iter().any(|path| path == run.config.as_str()),
-        fixture,
-        format!(
-            "run '{}' references undeclared config '{}'",
-            run.name, run.config
         ),
     )?;
     invalid_if(
@@ -990,11 +968,10 @@ name = "Fixture"
 source_files = ["main.py"]
 config_files = ["fixture.toml"]
 
-[[runs]]
+[run]
 name = "default"
 purpose = "rejects fixture.toml as a manifest-declared input"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"
 "#
             ),
@@ -1006,32 +983,24 @@ cache = "disabled"
     }
 
     #[test]
-    fn fixture_validation_rejects_multiple_runs_and_bad_asserts() {
+    fn fixture_validation_rejects_legacy_runs_missing_run_and_bad_asserts() {
         for (manifest_body, expected_file, expected_message) in [
             (
                 r#"[[runs]]
 name = "default"
-purpose = "first"
+purpose = "legacy plural runs table"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-
-[[runs]]
-name = "default"
-purpose = "second"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"
 "#,
                 valid_expected_file(),
-                "exactly one run",
+                "unknown field `runs`",
             ),
+            (r#""#, valid_expected_file(), "missing field `run`"),
             (
-                r#"[[runs]]
+                r#"[run]
 name = "default"
 purpose = "bad assert"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"
 "#,
                 json!({
@@ -1041,24 +1010,6 @@ cache = "disabled"
                     "output": valid_expected()
                 }),
                 "unknown JSON section",
-            ),
-            (
-                r#"[[runs]]
-name = "default"
-purpose = "extra run"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-
-[[runs]]
-name = "other"
-purpose = "extra run"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-"#,
-                valid_expected_file(),
-                "exactly one run",
             ),
         ] {
             let (_temp, root) = temp_fixture();

@@ -3,9 +3,8 @@ name = "Namespace Package"
 source_files = ["main.py", "namespace_pkg/module.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "source-root-namespace-package"
 purpose = "happy-path namespace package resolved under the fixture source root"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

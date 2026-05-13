@@ -118,8 +118,8 @@ fn validate_expected_json(expected: &Value) -> Result<(), Error> {
     assert!(
         violations
             .iter()
-            .any(|violation| violation.message.contains("exactly one run")),
-        "expected missing single-run schema guard violation, got {violations:#?}"
+            .any(|violation| violation.message.contains("singular run")),
+        "expected missing singular-run schema guard violation, got {violations:#?}"
     );
 }
 
@@ -282,7 +282,8 @@ fn fixture_schema_guard_violations(loader_text: &str) -> Vec<Violation> {
             "warnings",
             "expected JSON must contain array field 'warnings'",
         ),
-        ("exactly one run", "manifest must define exactly one run"),
+        ("singular run", "unknown field `runs`"),
+        ("required run", "missing field `run`"),
         (
             "unknown JSON section",
             "expected.json asserts unknown JSON section",

@@ -3,9 +3,8 @@ name = "Cache Parity Cached"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "cached"
 purpose = "cached analysis must preserve diagnostics, locations, and ordering"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "cached"

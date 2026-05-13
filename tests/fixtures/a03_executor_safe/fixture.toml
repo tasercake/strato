@@ -3,9 +3,8 @@ name = "Executor Safe"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "suppresses blocking propagation through run_in_executor"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

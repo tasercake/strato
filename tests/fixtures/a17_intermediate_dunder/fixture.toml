@@ -3,9 +3,8 @@ name = "Intermediate Dunder"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "keeps STRATO004 classification when dunder invocation appears below an intermediate helper"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

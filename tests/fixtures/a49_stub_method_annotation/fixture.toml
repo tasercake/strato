@@ -4,9 +4,8 @@ source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["stubs/client.pyi"]
 
-[[runs]]
+[run]
 name = "stub-method-annotation"
 purpose = "blocking annotations on stub methods apply to calls resolved through parameter types"
 args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
 cache = "disabled"

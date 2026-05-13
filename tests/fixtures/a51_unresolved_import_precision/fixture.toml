@@ -3,9 +3,8 @@ name = "Unresolved Import Precision"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "unresolved-import-precision"
 purpose = "unresolvable imports produce warnings but do not become blocking diagnostics"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

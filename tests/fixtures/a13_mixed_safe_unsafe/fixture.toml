@@ -3,9 +3,8 @@ name = "Mixed Safe Unsafe"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "reports unsafe direct reachability while suppressing to_thread reachability"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

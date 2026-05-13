@@ -3,9 +3,8 @@ name = "Dunder Operations"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "classifies representative implicit dunder operations as STRATO004"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

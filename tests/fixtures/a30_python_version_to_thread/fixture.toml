@@ -3,9 +3,8 @@ name = "Python Version To Thread"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 
-[[runs]]
+[run]
 name = "python38-to-thread"
 purpose = "does not silently treat asyncio.to_thread as an executor wrapper when the configured Python version lacks it"
 args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
 cache = "disabled"

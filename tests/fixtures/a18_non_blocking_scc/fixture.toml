@@ -3,9 +3,8 @@ name = "Non Blocking SCC"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "does not let @non_blocking on one SCC entry mask an unsafe peer"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

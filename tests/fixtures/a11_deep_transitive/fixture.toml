@@ -3,9 +3,8 @@ name = "Deep Transitive"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "preserves a deep transitive blocking chain"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

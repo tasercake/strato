@@ -4,9 +4,8 @@ source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["stubs/legacy_mod.pyi", "stubs/legacy_mod_extra.pyi"]
 
-[[runs]]
+[run]
 name = "blocking-module-prefix"
 purpose = "marks resolved external calls under a configured module prefix as blocking"
 args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
 cache = "disabled"

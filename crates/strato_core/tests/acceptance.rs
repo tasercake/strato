@@ -19,18 +19,13 @@ fn analyze_fixture_run(
     fixture: &AcceptanceFixture,
     run: &FixtureRun,
 ) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
-    let config = match run.config.as_str() {
-        "defaults" => strato_core::ConfigSource::Defaults,
-        "builtins" => strato_core::ConfigSource::BuiltInDefaults,
-        _ => strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf()),
-    };
     let cache_enabled = match run.cache.as_str() {
         "disabled" => Some(false),
         "fresh" | "cached" => Some(true),
         _ => None,
     };
     let mut options = strato_core::AnalysisOptions {
-        config,
+        config: strato_core::ConfigSource::Defaults,
         cache_enabled,
         clear_cache: run.cache == "fresh" || run.cache == "cached",
         ..strato_core::AnalysisOptions::defaults()
@@ -85,12 +80,7 @@ fn acceptance_fixtures_are_well_formed() {
     assert!(
         fixtures
             .iter()
-            .all(|fixture| !fixture.manifest.runs.is_empty())
-    );
-    assert!(
-        fixtures
-            .iter()
-            .all(|fixture| fixture.manifest.runs.len() == 1)
+            .all(|fixture| !fixture.manifest.run.name.is_empty())
     );
     assert!(fixtures.iter().any(|fixture| {
         fixture.expected.output["diagnostics"]
@@ -129,62 +119,53 @@ fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) 
 }
 
 fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
-    for run in &fixture.manifest.runs {
-        let expected = &fixture.expected;
-        if let Some(expected_error) = &expected.error {
-            let config = match run.config.as_str() {
-                "defaults" => strato_core::ConfigSource::Defaults,
-                "builtins" => strato_core::ConfigSource::BuiltInDefaults,
-                _ => strato_core::ConfigSource::Path(
-                    fixture.root.join(&run.config).into_std_path_buf(),
-                ),
-            };
-            let error = strato_core::analyze_path_with_options(
-                fixture.root.as_std_path(),
-                &strato_core::AnalysisOptions {
-                    config,
-                    ..strato_core::AnalysisOptions::defaults()
-                },
-            )
-            .expect_err("expected fatal analysis error");
-            assert!(
-                error.to_string().contains(expected_error),
-                "{}: {} ({}) expected error containing '{}', got '{}'",
-                fixture.id,
-                fixture.name,
-                run.name,
-                expected_error,
-                error
-            );
-            continue;
-        }
-        let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
+    let run = &fixture.manifest.run;
+    let expected = &fixture.expected;
+    if let Some(expected_error) = &expected.error {
+        let error = strato_core::analyze_path_with_options(
+            fixture.root.as_std_path(),
+            &strato_core::AnalysisOptions {
+                config: strato_core::ConfigSource::Defaults,
+                ..strato_core::AnalysisOptions::defaults()
+            },
+        )
+        .expect_err("expected fatal analysis error");
+        assert!(
+            error.to_string().contains(expected_error),
+            "{}: {} ({}) expected error containing '{}', got '{}'",
+            fixture.id,
+            fixture.name,
+            run.name,
+            expected_error,
+            error
+        );
+        return;
+    }
+    let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
+    assert_eq!(
+        actual_run.exit_code, expected.exit_code,
+        "{}: {} ({}) exit code",
+        fixture.id, fixture.name, run.name
+    );
+    let actual = actual_run.json;
+    if expected.mode == "full_json" {
         assert_eq!(
-            actual_run.exit_code, expected.exit_code,
-            "{}: {} ({}) exit code",
+            actual, expected.output,
+            "{}: {} ({})",
             fixture.id, fixture.name, run.name
         );
-        let actual = actual_run.json;
-        if expected.mode == "full_json" {
-            assert_eq!(
-                actual, expected.output,
-                "{}: {} ({})",
-                fixture.id, fixture.name, run.name
+    } else {
+        for section in &expected.assert_sections {
+            let actual_section = normalize_partial_section(section, &actual[section]);
+            let expected_section = normalize_partial_section(section, &expected.output[section]);
+            assert_json_subset(
+                &expected_section,
+                &actual_section,
+                &format!(
+                    "{}: {} ({}) section {section}",
+                    fixture.id, fixture.name, run.name
+                ),
             );
-        } else {
-            for section in &expected.assert_sections {
-                let actual_section = normalize_partial_section(section, &actual[section]);
-                let expected_section =
-                    normalize_partial_section(section, &expected.output[section]);
-                assert_json_subset(
-                    &expected_section,
-                    &actual_section,
-                    &format!(
-                        "{}: {} ({}) section {section}",
-                        fixture.id, fixture.name, run.name
-                    ),
-                );
-            }
         }
     }
 }

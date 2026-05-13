@@ -3,9 +3,8 @@ name = "Parameter Type Method Resolution"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "parameter-type-method-resolution"
 purpose = "method calls on annotated parameters resolve through type information"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

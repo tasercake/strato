@@ -3,9 +3,8 @@ name = "Deterministic Ordering Repeat"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "repeat"
 purpose = "emits byte-for-byte identical normalized JSON on an immediate repeat run"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

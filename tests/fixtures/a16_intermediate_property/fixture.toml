@@ -3,9 +3,8 @@ name = "Intermediate Property"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "keeps STRATO003 classification when property access appears below an intermediate helper"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

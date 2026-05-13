@@ -3,9 +3,8 @@ name = "Assignment Shadowing Import"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "assignment-shadowing-import"
 purpose = "local assignments shadow imports and prevent false external blocking resolution"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

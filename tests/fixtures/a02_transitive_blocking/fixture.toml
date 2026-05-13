@@ -3,9 +3,8 @@ name = "Transitive Blocking"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "first-party-deepest"
 purpose = "selects the deepest first-party blocking call under the default intervention strategy"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

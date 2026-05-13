@@ -3,9 +3,8 @@ name = "Star Import"
 source_files = ["main.py", "module_a.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "statically-enumerable"
 purpose = "happy-path star import where ty can enumerate exported names"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

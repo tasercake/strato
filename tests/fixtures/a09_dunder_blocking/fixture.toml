@@ -3,9 +3,8 @@ name = "Dunder Blocking"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "classifies implicit blocking dunder invocation as STRATO004"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

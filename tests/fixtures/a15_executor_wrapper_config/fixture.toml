@@ -4,9 +4,8 @@ source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["mylib.py"]
 
-[[runs]]
+[run]
 name = "configured-wrapper"
 purpose = "uses pyproject executor-wrapper config to suppress the wrapped callable"
 args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
 cache = "disabled"

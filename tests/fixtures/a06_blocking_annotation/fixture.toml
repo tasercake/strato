@@ -3,9 +3,8 @@ name = "Blocking Annotation"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "treats @blocking functions as blocking roots"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

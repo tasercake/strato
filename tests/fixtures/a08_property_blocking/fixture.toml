@@ -3,9 +3,8 @@ name = "Property Blocking"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "classifies blocking descriptor access as STRATO003"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

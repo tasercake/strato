@@ -3,9 +3,8 @@ name = "Non Blocking Override"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "default"
 purpose = "lets @non_blocking suppress blocking propagation for the annotated function"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

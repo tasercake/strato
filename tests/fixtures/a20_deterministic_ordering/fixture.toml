@@ -3,9 +3,8 @@ name = "Deterministic Ordering"
 source_files = ["main.py"]
 config_files = []
 
-[[runs]]
+[run]
 name = "first"
 purpose = "orders diagnostics deterministically by source location on the first run"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"

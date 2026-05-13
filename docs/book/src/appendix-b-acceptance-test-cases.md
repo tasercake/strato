@@ -1,17 +1,17 @@
 # Appendix B: Acceptance Test Cases
 
-Each executable fixture directory contains a `fixture.toml` manifest plus a single `expected.json` file. The manifest is the source of truth for how Strato is invoked; `expected.json` is the source of truth for what each run asserts:
+Each executable fixture directory contains a `fixture.toml` manifest plus a single `expected.json` file. The manifest is the source of truth for how Strato is invoked through its singular `[run]` table; `expected.json` is the source of truth for what the run asserts:
 
 - Every fixture input must be accounted for exactly once by `source_files`, `config_files`, `extra_files`, or the fixture's implicit `expected.json` file.
 - `source_files` lists Python source files walked for body analysis.
-- `config_files` lists fixture-relative configuration files.
+- `config_files` lists fixture-relative configuration files, including fixture-root `pyproject.toml` when Strato configuration is present.
 - `extra_files` lists non-source fixture inputs such as `.pyi` stubs.
-- each `[[runs]]` entry declares CLI arguments, config source (`defaults` or a fixture-relative config path), and cache mode.
+- `[run]` declares CLI arguments and cache mode for the fixture's single run.
 - `expected.json` declares `exit_code`, `mode`, `assert`, and `output` for the fixture's single run.
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
 - expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 
-Do not infer config from fixture names or global harness defaults. If a case depends on `intervention_strategy`, cache behavior, output format, or CLI precedence, encode that as a named run in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, and `warnings`; semantic fixtures should not assert exact message text unless that is their explicit purpose. `source_files` is the source of truth for body analysis; `.py` helper files that exist only to make imports resolvable must be listed in `extra_files`, not silently analyzed.
+Do not infer configuration from fixture names or hidden harness state. If a case depends on `intervention_strategy`, put Strato configuration in fixture-root `pyproject.toml` and list it in `config_files`. If a case depends on cache behavior, output format, or CLI precedence, encode that through `[run]` in `fixture.toml`. JSON output always contains top-level `version`, `diagnostics`, and `warnings`; semantic fixtures should not assert exact message text unless that is their explicit purpose. `source_files` is the source of truth for body analysis; `.py` helper files that exist only to make imports resolvable must be listed in `extra_files`, not silently analyzed.
 
 ### A1: Direct Blocking in Async (STRATO001)
 
