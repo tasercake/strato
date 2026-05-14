@@ -15,24 +15,60 @@ struct FixtureRunOutput {
     json: Value,
 }
 
-fn analyze_fixture_run(
+fn analyze_fixture_once(
     fixture: &AcceptanceFixture,
-    run: &FixtureRun,
+    cache_enabled: bool,
+    clear_cache: bool,
 ) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
-    let config = if run.config == "defaults" {
-        strato_core::ConfigSource::Defaults
-    } else {
-        strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
+    let options = strato_core::AnalysisOptions {
+        config: strato_core::ConfigSource::Defaults,
+        cache_enabled: Some(cache_enabled),
+        clear_cache,
+        ..strato_core::AnalysisOptions::defaults()
     };
-    let output = strato_core::analyze_path_with_options(
-        fixture.root.as_std_path(),
-        &strato_core::AnalysisOptions { config },
-    )?;
+    let output = strato_core::analyze_path_with_options(fixture.root.as_std_path(), &options)?;
 
     Ok(FixtureRunOutput {
         exit_code: output.exit_code,
         json: output.json,
     })
+}
+
+fn cleanup_fixture_cache(fixture: &AcceptanceFixture) {
+    let _ = std::fs::remove_dir_all(fixture.root.join(".strato_cache"));
+}
+
+fn analyze_fixture_run(
+    fixture: &AcceptanceFixture,
+    _run: &FixtureRun,
+) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
+    let result = (|| match fixture.id.as_str() {
+        "A21" => {
+            let fresh = analyze_fixture_once(fixture, false, true)?;
+            let seeded = analyze_fixture_once(fixture, true, true)?;
+            let cached = analyze_fixture_once(fixture, true, false)?;
+
+            assert_eq!(fresh.json, seeded.json, "{}: cache seed parity", fixture.id);
+            assert_eq!(seeded.json, cached.json, "{}: cache hit parity", fixture.id);
+
+            Ok(fresh)
+        }
+        "A37" => {
+            let baseline = analyze_fixture_once(fixture, false, true)?;
+            let cached = analyze_fixture_once(fixture, true, false)?;
+
+            assert_eq!(
+                baseline.json, cached.json,
+                "{}: cached-path parity",
+                fixture.id
+            );
+
+            Ok(cached)
+        }
+        _ => analyze_fixture_once(fixture, false, true),
+    })();
+    cleanup_fixture_cache(fixture);
+    result
 }
 
 fn fixture_root() -> Utf8PathBuf {
@@ -61,19 +97,12 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=51).map(|id| format!("A{id}")).collect::<Vec<_>>();
+    let expected_ids = (1..=55)
+        .filter(|id| !matches!(id, 27 | 28))
+        .map(|id| format!("A{id}"))
+        .collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
-    assert!(
-        fixtures
-            .iter()
-            .all(|fixture| !fixture.manifest.runs.is_empty())
-    );
-    assert!(
-        fixtures
-            .iter()
-            .all(|fixture| fixture.manifest.runs.len() == 1)
-    );
     assert!(fixtures.iter().any(|fixture| {
         fixture.expected.output["diagnostics"]
             .as_array()
@@ -111,57 +140,40 @@ fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) 
 }
 
 fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
-    for run in &fixture.manifest.runs {
-        let expected = &fixture.expected;
-        if let Some(expected_error) = &expected.error {
-            let config = if run.config == "defaults" {
-                strato_core::ConfigSource::Defaults
-            } else {
-                strato_core::ConfigSource::Path(fixture.root.join(&run.config).into_std_path_buf())
-            };
-            let error = strato_core::analyze_path_with_options(
-                fixture.root.as_std_path(),
-                &strato_core::AnalysisOptions { config },
-            )
-            .expect_err("expected fatal analysis error");
-            assert!(
-                error.to_string().contains(expected_error),
-                "{}: {} ({}) expected error containing '{}', got '{}'",
-                fixture.id,
-                fixture.name,
-                run.name,
-                expected_error,
-                error
-            );
-            continue;
-        }
-        let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
-        assert_eq!(
-            actual_run.exit_code, expected.exit_code,
-            "{}: {} ({}) exit code",
-            fixture.id, fixture.name, run.name
+    let run = &fixture.manifest.run;
+    let expected = &fixture.expected;
+    if let Some(expected_error) = &expected.error {
+        let error =
+            analyze_fixture_once(fixture, false, true).expect_err("expected fatal analysis error");
+        cleanup_fixture_cache(fixture);
+        assert!(
+            error.to_string().contains(expected_error),
+            "{}: {} expected error containing '{}', got '{}'",
+            fixture.id,
+            fixture.name,
+            expected_error,
+            error
         );
-        let actual = actual_run.json;
-        if expected.mode == "full_json" {
-            assert_eq!(
-                actual, expected.output,
-                "{}: {} ({})",
-                fixture.id, fixture.name, run.name
+        return;
+    }
+    let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
+    assert_eq!(
+        actual_run.exit_code, expected.exit_code,
+        "{}: {} exit code",
+        fixture.id, fixture.name
+    );
+    let actual = actual_run.json;
+    if expected.mode == "full_json" {
+        assert_eq!(actual, expected.output, "{}: {}", fixture.id, fixture.name);
+    } else {
+        for section in &expected.assert_sections {
+            let actual_section = normalize_partial_section(section, &actual[section]);
+            let expected_section = normalize_partial_section(section, &expected.output[section]);
+            assert_json_subset(
+                &expected_section,
+                &actual_section,
+                &format!("{}: {} section {section}", fixture.id, fixture.name),
             );
-        } else {
-            for section in &expected.assert_sections {
-                let actual_section = normalize_partial_section(section, &actual[section]);
-                let expected_section =
-                    normalize_partial_section(section, &expected.output[section]);
-                assert_json_subset(
-                    &expected_section,
-                    &actual_section,
-                    &format!(
-                        "{}: {} ({}) section {section}",
-                        fixture.id, fixture.name, run.name
-                    ),
-                );
-            }
         }
     }
 }
@@ -202,8 +214,6 @@ acceptance_fixture_test!(acceptance_a23_namespace_package, "A23");
 acceptance_fixture_test!(acceptance_a24_related_locations, "A24");
 acceptance_fixture_test!(acceptance_a25_syntax_warnings, "A25");
 acceptance_fixture_test!(acceptance_a26_stub_annotation, "A26");
-acceptance_fixture_test!(acceptance_a27_blocking_config_add, "A27");
-acceptance_fixture_test!(acceptance_a28_blocking_config_remove, "A28");
 acceptance_fixture_test!(acceptance_a29_blocking_module_prefix, "A29");
 acceptance_fixture_test!(acceptance_a30_python_version_to_thread, "A30");
 acceptance_fixture_test!(acceptance_a31_unresolved_call_precision, "A31");
@@ -227,6 +237,13 @@ acceptance_fixture_test!(acceptance_a48_parameter_type_method_resolution, "A48")
 acceptance_fixture_test!(acceptance_a49_stub_method_annotation, "A49");
 acceptance_fixture_test!(acceptance_a50_inherited_property_resolution, "A50");
 acceptance_fixture_test!(acceptance_a51_unresolved_import_precision, "A51");
+acceptance_fixture_test!(acceptance_a52_same_class_methods_across_modules, "A52");
+acceptance_fixture_test!(
+    acceptance_a53_same_class_methods_across_modules_positive,
+    "A53"
+);
+acceptance_fixture_test!(acceptance_a54_auto_pyproject_config, "A54");
+acceptance_fixture_test!(acceptance_a55_shortest_path_tiebreak, "A55");
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {

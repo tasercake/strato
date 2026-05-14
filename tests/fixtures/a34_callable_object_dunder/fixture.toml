@@ -1,11 +1,6 @@
-id = "A34"
 name = "Callable Object Dunder"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "classifies direct callable-object invocation through __call__ as STRATO004"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

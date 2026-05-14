@@ -1,11 +1,6 @@
-id = "A13"
 name = "Mixed Safe Unsafe"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "reports unsafe direct reachability while suppressing to_thread reachability"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

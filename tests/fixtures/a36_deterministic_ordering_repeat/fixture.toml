@@ -1,11 +1,6 @@
-id = "A36"
 name = "Deterministic Ordering Repeat"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "repeat"
-purpose = "emits byte-for-byte identical normalized JSON on an immediate repeat run"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

@@ -1,11 +1,6 @@
-id = "A33"
 name = "Method Call Resolution"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "resolves instance, static, and class method calls through the ty facade"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

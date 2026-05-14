@@ -28,9 +28,8 @@ pub struct AcceptanceFixture {
 
 /// Explicit fixture invocation and assertion contract.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FixtureManifest {
-    /// Appendix B identifier, for example `A1`.
-    pub id: String,
     /// Human-readable fixture name.
     pub name: String,
     /// Python source files that make up the fixture.
@@ -40,23 +39,16 @@ pub struct FixtureManifest {
     /// Other fixture inputs, such as stubs or helper package metadata.
     #[serde(default)]
     pub extra_files: Vec<Utf8PathBuf>,
-    /// Named analyzer runs over this fixture.
-    pub runs: Vec<FixtureRun>,
+    /// Analyzer run over this fixture.
+    pub run: FixtureRun,
 }
 
 /// One explicit analyzer run over a fixture.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FixtureRun {
-    /// Stable run name within the fixture.
-    pub name: String,
-    /// The behavior this run exists to protect.
-    pub purpose: String,
     /// CLI arguments, excluding the executable name.
     pub args: Vec<String>,
-    /// Configuration source: `defaults` or a fixture-relative config path.
-    pub config: String,
-    /// Cache mode for this run.
-    pub cache: String,
 }
 
 /// Expected analyzer JSON output for an acceptance fixture.
@@ -160,7 +152,7 @@ impl AcceptanceFixture {
         let sources = manifest.source_files.clone();
         let config_files = manifest.config_files.clone();
 
-        validate_manifest(root, &config_files, &expected, &manifest)?;
+        validate_manifest(root, &expected, &manifest)?;
 
         Ok(Self {
             id: fixture_id(root),
@@ -191,18 +183,12 @@ fn load_expected_output(root: &Utf8Path) -> Result<ExpectedOutput, FixtureError>
 
 fn validate_manifest(
     root: &Utf8Path,
-    config_files: &[Utf8PathBuf],
     expected: &ExpectedOutput,
     manifest: &FixtureManifest,
 ) -> Result<(), FixtureError> {
     let fixture = root
         .file_name()
         .map_or_else(|| root.to_string(), ToString::to_string);
-    invalid_if(
-        manifest.id != fixture_id(root),
-        &fixture,
-        format!("manifest id '{}' does not match directory id", manifest.id),
-    )?;
     invalid_if(
         manifest.source_files.is_empty(),
         &fixture,
@@ -220,15 +206,7 @@ fn validate_manifest(
     validate_manifest_paths(root, &fixture, "config_files", &manifest.config_files)?;
     validate_manifest_paths(root, &fixture, "extra_files", &manifest.extra_files)?;
     validate_all_inputs_accounted(root, &fixture, manifest)?;
-    invalid_if(
-        manifest.runs.len() != 1,
-        &fixture,
-        "manifest must define exactly one run".to_string(),
-    )?;
-
-    for run in &manifest.runs {
-        validate_run(config_files, &fixture, run)?;
-    }
+    validate_run(&fixture, &manifest.run)?;
     let location_files = expected_location_files(&manifest.source_files, &manifest.extra_files);
     validate_expected_metadata(&fixture, expected)?;
     validate_expected_json(
@@ -257,21 +235,7 @@ fn expected_location_files(
     files
 }
 
-fn validate_run(
-    config_files: &[Utf8PathBuf],
-    fixture: &str,
-    run: &FixtureRun,
-) -> Result<(), FixtureError> {
-    invalid_if(
-        run.name.is_empty(),
-        fixture,
-        "run name must not be empty".to_string(),
-    )?;
-    invalid_if(
-        run.purpose.is_empty(),
-        fixture,
-        format!("run '{}' purpose must not be empty", run.name),
-    )?;
+fn validate_run(fixture: &str, run: &FixtureRun) -> Result<(), FixtureError> {
     invalid_if(
         run.args
             .iter()
@@ -279,35 +243,19 @@ fn validate_run(
             .count()
             != 1,
         fixture,
-        format!("run '{}' must specify exactly one --output flag", run.name),
+        "run must specify exactly one --output flag".to_string(),
     )?;
     invalid_if(
         run.args.iter().any(|arg| arg == "--format"),
         fixture,
-        format!("run '{}' must use --output, not --format", run.name),
+        "run must use --output, not --format".to_string(),
     )?;
     invalid_if(
         !run.args
             .windows(2)
             .any(|args| args[0] == "--output" && args[1] == "json"),
         fixture,
-        format!(
-            "run '{}' must request JSON output with '--output json'",
-            run.name
-        ),
-    )?;
-    invalid_if(
-        run.config != "defaults" && !config_files.iter().any(|path| path == run.config.as_str()),
-        fixture,
-        format!(
-            "run '{}' references undeclared config '{}'",
-            run.name, run.config
-        ),
-    )?;
-    invalid_if(
-        !matches!(run.cache.as_str(), "disabled" | "fresh" | "cached"),
-        fixture,
-        format!("run '{}' has invalid cache mode '{}'", run.name, run.cache),
+        "run must request JSON output with '--output json'".to_string(),
     )?;
     Ok(())
 }
@@ -823,6 +771,9 @@ fn collect_all_files_inner(
         let path = Utf8PathBuf::from_path_buf(entry.path())
             .map_err(|path| FixtureError::NonUtf8Path(path.display().to_string()))?;
         if path.is_dir() {
+            if path.file_name() == Some(".strato_cache") {
+                continue;
+            }
             collect_all_files_inner(fixture_root, &path, files)?;
         } else {
             let relative = path
@@ -972,7 +923,6 @@ mod tests {
     #[test]
     fn manifest_cannot_list_fixture_toml_as_input() {
         let (_temp, root) = temp_fixture();
-        let id = fixture_id(&root);
         fs::write(
             root.join("expected.json"),
             valid_expected_file().to_string(),
@@ -980,20 +930,13 @@ mod tests {
         .expect("write expectation");
         fs::write(
             root.join("fixture.toml"),
-            format!(
-                r#"id = "{id}"
-name = "Fixture"
+            r#"name = "Fixture"
 source_files = ["main.py"]
 config_files = ["fixture.toml"]
 
-[[runs]]
-name = "default"
-purpose = "rejects fixture.toml as a manifest-declared input"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-"#
-            ),
+"#,
         )
         .expect("write manifest");
 
@@ -1002,33 +945,53 @@ cache = "disabled"
     }
 
     #[test]
-    fn fixture_validation_rejects_multiple_runs_and_bad_asserts() {
+    fn fixture_validation_rejects_legacy_runs_missing_run_and_bad_asserts() {
         for (manifest_body, expected_file, expected_message) in [
             (
                 r#"[[runs]]
 name = "default"
-purpose = "first"
+purpose = "legacy plural runs table"
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-
-[[runs]]
-name = "default"
-purpose = "second"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
 cache = "disabled"
 "#,
                 valid_expected_file(),
-                "exactly one run",
+                "unknown field `runs`",
             ),
             (
-                r#"[[runs]]
-name = "default"
-purpose = "bad assert"
+                r#"[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
+"#,
+                valid_expected_file(),
+                "unknown field `id`",
+            ),
+            (r#""#, valid_expected_file(), "missing field `run`"),
+            (
+                r#"[run]
+name = "default"
+args = ["check", ".", "--output", "json"]
+"#,
+                valid_expected_file(),
+                "unknown field `name`",
+            ),
+            (
+                r#"[run]
+purpose = "legacy run purpose"
+args = ["check", ".", "--output", "json"]
+"#,
+                valid_expected_file(),
+                "unknown field `purpose`",
+            ),
+            (
+                r#"[run]
+args = ["check", ".", "--output", "json"]
 cache = "disabled"
+"#,
+                valid_expected_file(),
+                "unknown field `cache`",
+            ),
+            (
+                r#"[run]
+args = ["check", ".", "--output", "json"]
 "#,
                 json!({
                     "exit_code": 0,
@@ -1038,34 +1001,18 @@ cache = "disabled"
                 }),
                 "unknown JSON section",
             ),
-            (
-                r#"[[runs]]
-name = "default"
-purpose = "extra run"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-
-[[runs]]
-name = "other"
-purpose = "extra run"
-args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
-"#,
-                valid_expected_file(),
-                "exactly one run",
-            ),
         ] {
             let (_temp, root) = temp_fixture();
-            let id = fixture_id(&root);
             fs::write(root.join("expected.json"), expected_file.to_string())
                 .expect("write expectation");
+            let manifest_header = if expected_message == "unknown field `id`" {
+                "id = \"legacy-id\"\nname = \"Fixture\"\nsource_files = [\"main.py\"]\nconfig_files = []\n\n"
+            } else {
+                "name = \"Fixture\"\nsource_files = [\"main.py\"]\nconfig_files = []\n\n"
+            };
             fs::write(
                 root.join("fixture.toml"),
-                format!(
-                    "id = \"{id}\"\nname = \"Fixture\"\nsource_files = [\"main.py\"]\nconfig_files = []\n\n{manifest_body}"
-                ),
+                format!("{manifest_header}{manifest_body}"),
             )
             .expect("write manifest");
 

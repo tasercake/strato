@@ -1,11 +1,6 @@
-id = "A22"
 name = "Star Import"
 source_files = ["main.py", "module_a.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "statically-enumerable"
-purpose = "happy-path star import where ty can enumerate exported names"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

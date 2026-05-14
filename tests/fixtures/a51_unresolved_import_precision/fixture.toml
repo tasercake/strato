@@ -1,11 +1,6 @@
-id = "A51"
 name = "Unresolved Import Precision"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "unresolved-import-precision"
-purpose = "unresolvable imports produce warnings but do not become blocking diagnostics"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

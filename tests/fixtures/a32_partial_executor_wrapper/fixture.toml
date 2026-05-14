@@ -1,11 +1,6 @@
-id = "A32"
 name = "Partial Executor Wrapper"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "suppresses blocking propagation through functools.partial passed to run_in_executor"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

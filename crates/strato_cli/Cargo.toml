@@ -15,12 +15,14 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 miette.workspace = true
+serde_json.workspace = true
 strato_core = { path = "../strato_core" }
 tracing.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

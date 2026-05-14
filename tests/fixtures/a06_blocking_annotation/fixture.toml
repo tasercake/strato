@@ -1,11 +1,6 @@
-id = "A6"
 name = "Blocking Annotation"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "treats @blocking functions as blocking roots"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

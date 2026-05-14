@@ -1,11 +1,6 @@
-id = "A21"
 name = "Cache Parity Fresh"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "fresh"
-purpose = "records the fresh-analysis diagnostic used for cache parity"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "fresh"

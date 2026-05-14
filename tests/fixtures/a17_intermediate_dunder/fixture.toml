@@ -1,11 +1,6 @@
-id = "A17"
 name = "Intermediate Dunder"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "keeps STRATO004 classification when dunder invocation appears below an intermediate helper"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

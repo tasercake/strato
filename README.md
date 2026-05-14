@@ -2,11 +2,27 @@
 
 Strato is a linter designed to detect common pitfalls in Python's asynchronous (asyncio) code.
 
-> 🔎 Strato is currently in the research & design phase. Nothing has been implemented yet. Open to comments and feedback 🙂
+> 🔎 Strato is currently in early alpha - wouldn't recommend relying on it for production use. Open to comments and feedback 🙂
 
-The core problem it addresses: async code that looks correct but actually defeats the purpose of async programming. When a blocking operation (like reading a file synchronously, making a blocking HTTP request, or calling time.sleep()) runs inside an async function, it freezes the entire event loop – preventing all other async tasks from making progress. These bugs are particularly insidious because the code still works, it just silently destroys the concurrency benefits async was supposed to provide.
+When a blocking operation (like reading a file synchronously, making a blocking HTTP request, or calling time.sleep()) runs inside an async function, it freezes the entire event loop – preventing all other async tasks from making progress. These bugs are insidious because the code still works, they just silently destroy the concurrency benefits async was supposed to provide.
 
 The project's key ambition goes beyond detecting direct blocking calls (which existing tools already catch). It aims to detect indirect blocking – when an async function calls a regular function that internally makes blocking calls. This requires cross-function and potentially cross-file analysis to trace call chains and determine whether a seemingly innocent function call will ultimately block the event loop.
+
+## Usage
+
+Run Strato against a Python project or directory with:
+
+```bash
+cargo run -p strato_cli -- check path/to/project
+```
+
+For example, from this repository:
+
+```bash
+cargo run -p strato_cli -- check tests/fixtures/a02_transitive_blocking --no-cache
+```
+
+Use `--output json` or `--output sarif` for machine-readable output.
 
 ---
 

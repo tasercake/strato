@@ -1,11 +1,6 @@
-id = "A35"
 name = "Dunder Operations"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "classifies representative implicit dunder operations as STRATO004"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

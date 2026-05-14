@@ -1,0 +1,124 @@
+{
+  "exit_code": 1,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [
+      {
+        "code": "STRATO001",
+        "severity": "error",
+        "primary_location": {
+          "file": "main.py",
+          "line": 7,
+          "column": 5
+        },
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 5,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "time.sleep",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      },
+      {
+        "code": "STRATO001",
+        "severity": "error",
+        "primary_location": {
+          "file": "main.py",
+          "line": 8,
+          "column": 5
+        },
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 5,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "os.listdir",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      },
+      {
+        "code": "STRATO001",
+        "severity": "error",
+        "primary_location": {
+          "file": "main.py",
+          "line": 9,
+          "column": 5
+        },
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 5,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "os.listdir",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      },
+      {
+        "code": "STRATO002",
+        "severity": "error",
+        "primary_location": {
+          "file": "main.py",
+          "line": 12,
+          "column": 5
+        },
+        "chain": [
+          {
+            "function": "handler",
+            "file": "main.py",
+            "line": 5,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "helper",
+            "file": "main.py",
+            "line": 11,
+            "is_async": false,
+            "is_first_party": true
+          },
+          {
+            "function": "io.open",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      }
+    ],
+    "warnings": []
+  }
+}

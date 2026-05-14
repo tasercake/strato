@@ -1,0 +1,6 @@
+name = "Same Class Methods Across Modules Positive"
+source_files = ["async_client.py", "sync_client.py"]
+config_files = ["pyproject.toml"]
+
+[run]
+args = ["check", ".", "--output", "json"]

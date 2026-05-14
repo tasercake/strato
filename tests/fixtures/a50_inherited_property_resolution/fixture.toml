@@ -1,11 +1,6 @@
-id = "A50"
 name = "Inherited Property Resolution"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "inherited-property-resolution"
-purpose = "property lookup follows class inheritance when resolving blocking getters"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

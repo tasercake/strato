@@ -1,11 +1,6 @@
-id = "A7"
 name = "Non Blocking Override"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "lets @non_blocking suppress blocking propagation for the annotated function"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"

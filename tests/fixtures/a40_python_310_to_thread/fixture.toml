@@ -1,11 +1,6 @@
-id = "A40"
 name = "Python 3.10 To Thread"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "python-310-to-thread"
-purpose = "treats python_version 3.10 as supporting asyncio.to_thread"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "pyproject.toml"
-cache = "disabled"

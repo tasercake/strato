@@ -1,0 +1,6 @@
+name = "Shortest Path Tiebreak"
+source_files = ["main.py"]
+config_files = ["pyproject.toml"]
+
+[run]
+args = ["check", ".", "--output", "json"]

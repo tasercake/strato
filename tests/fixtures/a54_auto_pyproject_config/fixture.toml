@@ -1,0 +1,6 @@
+name = "Auto Pyproject Config"
+source_files = ["blocked.py", "safe.py"]
+config_files = ["pyproject.toml"]
+
+[run]
+args = ["check", ".", "--output", "json"]

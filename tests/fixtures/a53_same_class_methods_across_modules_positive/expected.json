@@ -1,0 +1,54 @@
+{
+  "exit_code": 1,
+  "mode": "partial_json",
+  "assert": [
+    "diagnostics",
+    "warnings"
+  ],
+  "output": {
+    "version": "1.0",
+    "diagnostics": [
+      {
+        "code": "STRATO002",
+        "severity": "error",
+        "primary_location": {
+          "file": "async_client.py",
+          "line": 9,
+          "column": 9
+        },
+        "chain": [
+          {
+            "function": "Manager.initialize",
+            "file": "async_client.py",
+            "line": 13,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "ServiceClient.execute",
+            "file": "async_client.py",
+            "line": 5,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "ServiceClient._execute",
+            "file": "async_client.py",
+            "line": 8,
+            "is_async": true,
+            "is_first_party": true
+          },
+          {
+            "function": "time.sleep",
+            "file": null,
+            "line": null,
+            "is_async": false,
+            "is_first_party": false
+          }
+        ],
+        "intervention_strategy": "first-party-deepest"
+      }
+    ],
+    "warnings": []
+  }
+}

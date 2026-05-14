@@ -1,11 +1,6 @@
-id = "A9"
 name = "Dunder Blocking"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
-[[runs]]
-name = "default"
-purpose = "classifies implicit blocking dunder invocation as STRATO004"
+[run]
 args = ["check", ".", "--output", "json"]
-config = "defaults"
-cache = "disabled"
