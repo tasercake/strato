@@ -14,8 +14,8 @@ pub struct PropagationResult {
     pub sccs: Vec<Vec<NodeId>>,
     /// Deterministic condensation DAG edges.
     pub condensation_edges: Vec<CondensedEdge>,
-    /// Shortest blocking reason for each known or propagated blocking node.
-    pub blocking_reasons: BTreeMap<NodeId, BlockingReason>,
+    /// Blocking reasons for each known or propagated blocking node.
+    pub blocking_reasons: BTreeMap<NodeId, Vec<BlockingReason>>,
 }
 
 /// One edge in the SCC condensation DAG.
@@ -72,7 +72,7 @@ pub fn propagate_blocking(graph: &mut CallGraph) -> PropagationResult {
     let condensation = build_condensation(graph, &sccs);
     let topo_order = topological_order(sccs.len(), &condensation.edges);
     let incoming_unprotected = incoming_unprotected_edges(graph);
-    let mut paths = vec![None; graph.nodes().len()];
+    let mut paths = vec![Vec::new(); graph.nodes().len()];
 
     for scc_id in topo_order.into_iter().rev() {
         process_scc(
@@ -94,7 +94,9 @@ pub fn propagate_blocking(graph: &mut CallGraph) -> PropagationResult {
                 BlockingStatus::KnownBlocking | BlockingStatus::PropagatedBlocking
             )
         })
-        .filter_map(|node| paths[node.id.0].clone().map(|reason| (node.id, reason)))
+        .filter_map(|node| {
+            (!paths[node.id.0].is_empty()).then(|| (node.id, paths[node.id.0].clone()))
+        })
         .collect();
 
     PropagationResult {
@@ -126,7 +128,7 @@ fn process_scc(
     scc_id: usize,
     condensation: &Condensation,
     incoming_unprotected: &[Vec<CallEdge>],
-    paths: &mut [Option<BlockingReason>],
+    paths: &mut [Vec<BlockingReason>],
 ) {
     let mut frontier = BTreeSet::new();
 
@@ -152,12 +154,13 @@ fn process_scc(
                 .get(&(condensed_edge.from_scc, condensed_edge.to_scc))
             {
                 for edge in edges.iter().filter(|edge| !edge_is_protected(edge)) {
-                    let Some(tail_reason) = paths[edge.to.0].clone() else {
-                        continue;
-                    };
-                    let reason = prepend_edge(graph, edge, &tail_reason);
-                    if relax_path(paths, edge.from, reason, graph) {
-                        frontier.insert(edge.from);
+                    for tail_reason in paths[edge.to.0].clone() {
+                        let Some(reason) = prepend_edge(graph, edge, &tail_reason) else {
+                            continue;
+                        };
+                        if relax_path(paths, edge.from, reason, graph) {
+                            frontier.insert(edge.from);
+                        }
                     }
                 }
             }
@@ -165,23 +168,25 @@ fn process_scc(
     }
 
     while let Some(node_id) = frontier.pop_first() {
-        let Some(tail_reason) = paths[node_id.0].clone() else {
-            continue;
-        };
+        let tail_reasons = paths[node_id.0].clone();
         for edge in &incoming_unprotected[node_id.0] {
             if condensation.scc_by_node[edge.from.0] != scc_id {
                 continue;
             }
-            let reason = prepend_edge(graph, edge, &tail_reason);
-            if relax_path(paths, edge.from, reason, graph) {
-                frontier.insert(edge.from);
+            for tail_reason in &tail_reasons {
+                let Some(reason) = prepend_edge(graph, edge, tail_reason) else {
+                    continue;
+                };
+                if relax_path(paths, edge.from, reason, graph) {
+                    frontier.insert(edge.from);
+                }
             }
         }
     }
 
     for node_id in scc {
         if graph.nodes()[node_id.0].blocking_status == BlockingStatus::Unknown
-            && paths[node_id.0].is_some()
+            && !paths[node_id.0].is_empty()
         {
             graph.set_blocking_status(*node_id, BlockingStatus::PropagatedBlocking);
         }
@@ -189,7 +194,7 @@ fn process_scc(
 }
 
 fn relax_path(
-    paths: &mut [Option<BlockingReason>],
+    paths: &mut [Vec<BlockingReason>],
     node_id: NodeId,
     candidate: BlockingReason,
     graph: &CallGraph,
@@ -197,13 +202,12 @@ fn relax_path(
     if graph.nodes()[node_id.0].blocking_status == BlockingStatus::KnownNonBlocking {
         return false;
     }
-    let should_replace = paths[node_id.0]
-        .as_ref()
-        .is_none_or(|existing| compare_reasons(&candidate, existing, graph).is_lt());
-    if should_replace {
-        paths[node_id.0] = Some(candidate);
+    if paths[node_id.0].contains(&candidate) {
+        return false;
     }
-    should_replace
+    paths[node_id.0].push(candidate);
+    paths[node_id.0].sort_by(|left, right| compare_reasons(left, right, graph));
+    true
 }
 
 fn compare_reasons(left: &BlockingReason, right: &BlockingReason, graph: &CallGraph) -> Ordering {
@@ -223,9 +227,16 @@ fn prepend_edge(
     graph: &CallGraph,
     edge: &CallEdge,
     tail_reason: &BlockingReason,
-) -> BlockingReason {
+) -> Option<BlockingReason> {
     let source_node = &graph.nodes()[edge.from.0];
     let target_node = &graph.nodes()[edge.to.0];
+    if tail_reason
+        .chain_links
+        .iter()
+        .any(|link| link.function_name == source_node.identity)
+    {
+        return None;
+    }
     let mut chain_links = Vec::with_capacity(tail_reason.chain_links.len() + 1);
     chain_links.push(ChainLink {
         function_name: source_node.identity.clone(),
@@ -237,10 +248,10 @@ fn prepend_edge(
         is_first_party: source_node.location.is_some(),
     });
     chain_links.extend(tail_reason.chain_links.iter().cloned());
-    BlockingReason {
+    Some(BlockingReason {
         root_cause: tail_reason.root_cause,
         chain_links,
-    }
+    })
 }
 
 fn build_condensation(graph: &CallGraph, sccs: &[Vec<NodeId>]) -> Condensation {
@@ -494,26 +505,28 @@ mod tests {
         result
             .blocking_reasons
             .iter()
-            .map(|(node, reason)| {
-                let node_name = &graph.nodes()[node.0].qualified_name;
-                let root_name = &graph.nodes()[reason.root_cause.0].qualified_name;
-                let chain = reason
-                    .chain_links
-                    .iter()
-                    .map(|link| {
-                        format!(
-                            "{}@{}->{}",
-                            link.function_name,
-                            link.call_site_location.map_or_else(
-                                || "-".to_string(),
-                                |location| location.start.to_string()
-                            ),
-                            link.callee_name
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("|");
-                format!("{node_name}:{root_name}:{chain}")
+            .flat_map(|(node, reasons)| {
+                reasons.iter().map(|reason| {
+                    let node_name = &graph.nodes()[node.0].qualified_name;
+                    let root_name = &graph.nodes()[reason.root_cause.0].qualified_name;
+                    let chain = reason
+                        .chain_links
+                        .iter()
+                        .map(|link| {
+                            format!(
+                                "{}@{}->{}",
+                                link.function_name,
+                                link.call_site_location.map_or_else(
+                                    || "-".to_string(),
+                                    |location| location.start.to_string()
+                                ),
+                                link.callee_name
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("|");
+                    format!("{node_name}:{root_name}:{chain}")
+                })
             })
             .collect()
     }
@@ -534,7 +547,7 @@ mod tests {
         assert_eq!(statuses["helper"], BlockingStatus::PropagatedBlocking);
         assert_eq!(statuses["time.sleep"], BlockingStatus::KnownBlocking);
 
-        let handler_reason = &result.blocking_reasons[&handler];
+        let handler_reason = &result.blocking_reasons[&handler][0];
         assert_eq!(handler_reason.root_cause, sleep);
         assert_eq!(handler_reason.chain_links.len(), 2);
         assert_eq!(handler_reason.chain_links[0].function_name, "handler");

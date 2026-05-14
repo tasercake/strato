@@ -200,9 +200,14 @@ pub fn build_report(input: ReportInput<'_>) -> Report {
         .propagation
         .blocking_reasons
         .iter()
-        .filter_map(|(node_id, reason)| diagnostic_for_reason(*node_id, reason, &input, &context))
+        .flat_map(|(node_id, reasons)| {
+            reasons
+                .iter()
+                .filter_map(|reason| diagnostic_for_reason(*node_id, reason, &input, &context))
+        })
         .collect::<Vec<_>>();
     diagnostics.sort_by(compare_diagnostics);
+    diagnostics.dedup();
 
     let mut warnings = input
         .warnings
