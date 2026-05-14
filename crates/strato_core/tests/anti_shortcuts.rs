@@ -284,6 +284,10 @@ fn fixture_schema_guard_violations(loader_text: &str) -> Vec<Violation> {
         ),
         ("singular run", "unknown field `runs`"),
         ("required run", "missing field `run`"),
+        ("legacy fixture id", "unknown field `id`"),
+        ("legacy run name", "unknown field `name`"),
+        ("legacy run purpose", "unknown field `purpose`"),
+        ("legacy run cache", "unknown field `cache`"),
         (
             "unknown JSON section",
             "expected.json asserts unknown JSON section",
