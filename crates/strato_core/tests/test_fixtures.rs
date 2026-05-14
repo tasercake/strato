@@ -59,6 +59,9 @@ pub struct ExpectedOutput {
     /// Expected fatal analysis error substring, when analysis cannot produce JSON.
     #[serde(default)]
     pub error: Option<String>,
+    /// Maximum fixture runtime in milliseconds, when this fixture enforces one.
+    #[serde(default, rename = "timeout")]
+    pub timeout_milliseconds: Option<u64>,
     /// Assertion mode: `full_json` or `partial_json`.
     pub mode: String,
     /// Top-level JSON sections this run asserts.
@@ -861,6 +864,19 @@ mod tests {
             true,
         )
         .expect("current top-level shape should validate");
+    }
+
+    #[test]
+    fn expected_json_timeout_defaults_absent_and_accepts_milliseconds() {
+        let defaulted = serde_json::from_value::<ExpectedOutput>(valid_expected_file())
+            .expect("missing timeout should parse");
+        assert_eq!(defaulted.timeout_milliseconds, None);
+
+        let mut expected = valid_expected_file();
+        expected["timeout"] = json!(50);
+        let with_timeout =
+            serde_json::from_value::<ExpectedOutput>(expected).expect("timeout should parse");
+        assert_eq!(with_timeout.timeout_milliseconds, Some(50));
     }
 
     #[test]

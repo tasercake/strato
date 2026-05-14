@@ -1,6 +1,10 @@
 #![allow(missing_docs)]
 
-use std::sync::OnceLock;
+use std::{
+    sync::{OnceLock, mpsc},
+    thread,
+    time::Duration,
+};
 
 use camino::Utf8PathBuf;
 use serde_json::Value;
@@ -71,6 +75,37 @@ fn analyze_fixture_run(
     result
 }
 
+fn run_with_fixture_timeout<T, F>(
+    id: &str,
+    name: &str,
+    timeout_milliseconds: Option<u64>,
+    run: F,
+) -> T
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    let Some(milliseconds) = timeout_milliseconds else {
+        return run();
+    };
+
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let result = run();
+        let _ = sender.send(result);
+    });
+
+    match receiver.recv_timeout(Duration::from_millis(milliseconds)) {
+        Ok(result) => result,
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            panic!("{id}: {name} exceeded fixture timeout of {milliseconds}ms")
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            panic!("{id}: {name} fixture run exited before sending a result")
+        }
+    }
+}
+
 fn fixture_root() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
 }
@@ -116,6 +151,17 @@ fn acceptance_fixtures_are_well_formed() {
     assert_full_json_contract_covers_error_codes(fixtures);
 }
 
+#[test]
+fn fixture_timeout_marks_slow_run_failed() {
+    let result = std::panic::catch_unwind(|| {
+        run_with_fixture_timeout("A0", "timeout test", Some(50), || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        });
+    });
+
+    assert!(result.is_err(), "run exceeding timeout should fail");
+}
+
 fn assert_full_json_contract_covers_error_codes(fixtures: &[AcceptanceFixture]) {
     let mut covered_codes = fixtures
         .iter()
@@ -143,9 +189,19 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
     let run = &fixture.manifest.run;
     let expected = &fixture.expected;
     if let Some(expected_error) = &expected.error {
-        let error =
-            analyze_fixture_once(fixture, false, true).expect_err("expected fatal analysis error");
-        cleanup_fixture_cache(fixture);
+        let fixture_for_run = fixture.clone();
+        let timeout_milliseconds = expected.timeout_milliseconds;
+        let error = run_with_fixture_timeout(
+            &fixture.id,
+            &fixture.name,
+            timeout_milliseconds,
+            move || {
+                let error = analyze_fixture_once(&fixture_for_run, false, true)
+                    .expect_err("expected fatal analysis error");
+                cleanup_fixture_cache(&fixture_for_run);
+                error
+            },
+        );
         assert!(
             error.to_string().contains(expected_error),
             "{}: {} expected error containing '{}', got '{}'",
@@ -156,7 +212,15 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
         );
         return;
     }
-    let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
+    let fixture_for_run = fixture.clone();
+    let run_for_run = run.clone();
+    let timeout_milliseconds = expected.timeout_milliseconds;
+    let actual_run = run_with_fixture_timeout(
+        &fixture.id,
+        &fixture.name,
+        timeout_milliseconds,
+        move || analyze_fixture_run(&fixture_for_run, &run_for_run).expect("analyze fixture run"),
+    );
     assert_eq!(
         actual_run.exit_code, expected.exit_code,
         "{}: {} exit code",

@@ -8,7 +8,7 @@ Each executable fixture directory contains a fixture-root `pyproject.toml`, a `f
 - `config_files` must be exactly `["pyproject.toml"]`.
 - `extra_files`, when present, lists non-source fixture inputs such as `.pyi` stubs.
 - `[run]` declares only `args` for the fixture's single run.
-- `expected.json` declares `exit_code`, `mode`, `assert`, and `output` for the fixture's single run.
+- `expected.json` declares `exit_code`, `mode`, `assert`, and `output` for the fixture's single run. It may also declare `timeout` in milliseconds; omit `timeout` unless the fixture must enforce a maximum runtime.
 - expectation `mode = "full_json"` is reserved for output-contract cases where every JSON field matters.
 - expectation `mode = "partial_json"` is used for semantic cases; the `assert` list names the top-level JSON sections that protect the behavior under test. Partial JSON expectations are object-subset assertions: fields present in expected objects must match, but unrelated fields in actual objects may evolve without breaking semantic fixtures. Arrays still require the same length and order so fixtures cannot silently ignore extra diagnostics or warnings.
 
