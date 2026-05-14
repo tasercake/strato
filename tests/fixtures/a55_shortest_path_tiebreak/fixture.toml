@@ -1,0 +1,10 @@
+id = "A55"
+name = "Shortest Path Tiebreak"
+source_files = ["main.py"]
+config_files = []
+
+[run]
+name = "representative-root"
+purpose = "selects the shortest propagated path, then lexicographic blocking root, then earliest call site"
+args = ["check", ".", "--output", "json"]
+cache = "disabled"

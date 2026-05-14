@@ -71,7 +71,7 @@ fn acceptance_fixtures_are_well_formed() {
         .iter()
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
-    let expected_ids = (1..=54)
+    let expected_ids = (1..=55)
         .filter(|id| !matches!(id, 27 | 28))
         .map(|id| format!("A{id}"))
         .collect::<Vec<_>>();
@@ -235,6 +235,7 @@ acceptance_fixture_test!(
     "A53"
 );
 acceptance_fixture_test!(acceptance_a54_auto_pyproject_config, "A54");
+acceptance_fixture_test!(acceptance_a55_shortest_path_tiebreak, "A55");
 
 fn assert_json_subset(expected: &Value, actual: &Value, context: &str) {
     match (expected, actual) {

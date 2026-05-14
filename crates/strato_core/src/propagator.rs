@@ -678,28 +678,4 @@ mod tests {
             reason_snapshot(&second_graph, &second)
         );
     }
-
-    #[test]
-    fn propagator_shortest_path_prefers_shortest_then_lexicographic_root_and_call_site() {
-        let mut graph = CallGraph::default();
-        let start = function(&mut graph, "start", true, BlockingStatus::Unknown, 1);
-        let mid = function(&mut graph, "mid", false, BlockingStatus::Unknown, 10);
-        let root_a = external(&mut graph, "a.blocking", BlockingStatus::KnownBlocking);
-        let root_b = external(&mut graph, "b.blocking", BlockingStatus::KnownBlocking);
-        let root_lexically_first_but_longer =
-            external(&mut graph, "0.blocking", BlockingStatus::KnownBlocking);
-        call(&mut graph, start, mid, false, 15);
-        call(&mut graph, mid, root_lexically_first_but_longer, false, 16);
-        call(&mut graph, start, root_b, false, 30);
-        call(&mut graph, start, root_a, false, 25);
-        call(&mut graph, start, root_a, false, 20);
-
-        let result = propagate_blocking(&mut graph);
-
-        let reason = &result.blocking_reasons[&start];
-        assert_eq!(reason.root_cause, root_a);
-        assert_eq!(reason.chain_links.len(), 1);
-        assert_eq!(reason.chain_links[0].callee_name, "a.blocking");
-        assert_eq!(reason.chain_links[0].call_site_location, Some(loc(20)));
-    }
 }
