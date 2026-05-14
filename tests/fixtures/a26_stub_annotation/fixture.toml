@@ -1,11 +1,7 @@
-id = "A26"
 name = "Stub Annotation"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["stubs/thirdparty.pyi"]
 
 [run]
-name = "stub-blocking-annotation"
-purpose = "loads @blocking metadata from configured .pyi stub paths"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

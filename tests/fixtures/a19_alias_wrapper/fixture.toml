@@ -1,11 +1,7 @@
-id = "A19"
 name = "Alias Wrapper"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["mylib.py"]
 
 [run]
-name = "configured-alias-wrapper"
-purpose = "resolves an imported alias of a configured executor wrapper"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

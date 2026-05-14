@@ -1,11 +1,7 @@
-id = "A29"
 name = "Blocking Module Prefix"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["stubs/legacy_mod.pyi", "stubs/legacy_mod_extra.pyi"]
 
 [run]
-name = "blocking-module-prefix"
-purpose = "marks resolved external calls under a configured module prefix as blocking"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

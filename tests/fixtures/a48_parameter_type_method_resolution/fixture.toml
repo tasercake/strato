@@ -1,10 +1,6 @@
-id = "A48"
 name = "Parameter Type Method Resolution"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "parameter-type-method-resolution"
-purpose = "method calls on annotated parameters resolve through type information"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

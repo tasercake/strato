@@ -1,11 +1,7 @@
-id = "A43"
 name = "Source Roots Exclude Boundaries"
 source_files = ["src/app.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["scripts/bad.py", "src/vendor/bad.py"]
 
 [run]
-name = "src-roots-exclude"
-purpose = "discovery only analyzes configured source roots after exclude patterns"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

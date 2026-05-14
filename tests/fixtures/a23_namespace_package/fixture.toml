@@ -1,10 +1,6 @@
-id = "A23"
 name = "Namespace Package"
 source_files = ["main.py", "namespace_pkg/module.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "source-root-namespace-package"
-purpose = "happy-path namespace package resolved under the fixture source root"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

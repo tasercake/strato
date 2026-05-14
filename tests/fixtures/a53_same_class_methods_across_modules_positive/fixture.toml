@@ -1,10 +1,6 @@
-id = "A53"
 name = "Same Class Methods Across Modules Positive"
 source_files = ["async_client.py", "sync_client.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "same-class-methods-across-modules-positive"
-purpose = "same class-qualified method names in different modules still report blocking in the async module"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

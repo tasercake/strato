@@ -1,10 +1,6 @@
-id = "A52"
 name = "Same Class Methods Across Modules"
 source_files = ["async_client.py", "sync_client.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "same-class-methods-across-modules"
-purpose = "same class-qualified method names in different modules remain distinct when only the sync module blocks"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

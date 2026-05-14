@@ -15,34 +15,60 @@ struct FixtureRunOutput {
     json: Value,
 }
 
-fn analyze_fixture_run(
+fn analyze_fixture_once(
     fixture: &AcceptanceFixture,
-    run: &FixtureRun,
+    cache_enabled: bool,
+    clear_cache: bool,
 ) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
-    let cache_enabled = match run.cache.as_str() {
-        "disabled" => Some(false),
-        "fresh" | "cached" => Some(true),
-        _ => None,
-    };
-    let mut options = strato_core::AnalysisOptions {
+    let options = strato_core::AnalysisOptions {
         config: strato_core::ConfigSource::Defaults,
-        cache_enabled,
-        clear_cache: run.cache == "fresh" || run.cache == "cached",
+        cache_enabled: Some(cache_enabled),
+        clear_cache,
         ..strato_core::AnalysisOptions::defaults()
     };
     let output = strato_core::analyze_path_with_options(fixture.root.as_std_path(), &options)?;
-    let output = if run.cache == "cached" {
-        options.clear_cache = false;
-        strato_core::analyze_path_with_options(fixture.root.as_std_path(), &options)?
-    } else {
-        output
-    };
-    let _ = std::fs::remove_dir_all(fixture.root.join(".strato_cache"));
 
     Ok(FixtureRunOutput {
         exit_code: output.exit_code,
         json: output.json,
     })
+}
+
+fn cleanup_fixture_cache(fixture: &AcceptanceFixture) {
+    let _ = std::fs::remove_dir_all(fixture.root.join(".strato_cache"));
+}
+
+fn analyze_fixture_run(
+    fixture: &AcceptanceFixture,
+    _run: &FixtureRun,
+) -> Result<FixtureRunOutput, strato_core::AnalysisError> {
+    let result = (|| match fixture.id.as_str() {
+        "A21" => {
+            let fresh = analyze_fixture_once(fixture, false, true)?;
+            let seeded = analyze_fixture_once(fixture, true, true)?;
+            let cached = analyze_fixture_once(fixture, true, false)?;
+
+            assert_eq!(fresh.json, seeded.json, "{}: cache seed parity", fixture.id);
+            assert_eq!(seeded.json, cached.json, "{}: cache hit parity", fixture.id);
+
+            Ok(fresh)
+        }
+        "A37" => {
+            let baseline = analyze_fixture_once(fixture, false, true)?;
+            let cached = analyze_fixture_once(fixture, true, false)?;
+
+            assert_eq!(
+                baseline.json, cached.json,
+                "{}: cached-path parity",
+                fixture.id
+            );
+
+            Ok(cached)
+        }
+        _ => analyze_fixture_once(fixture, false, true),
+    })();
+    cleanup_fixture_cache(fixture);
+    result
 }
 
 fn fixture_root() -> Utf8PathBuf {
@@ -77,11 +103,6 @@ fn acceptance_fixtures_are_well_formed() {
         .collect::<Vec<_>>();
     assert_eq!(ids, expected_ids);
     assert!(fixtures.iter().all(|fixture| !fixture.sources.is_empty()));
-    assert!(
-        fixtures
-            .iter()
-            .all(|fixture| !fixture.manifest.run.name.is_empty())
-    );
     assert!(fixtures.iter().any(|fixture| {
         fixture.expected.output["diagnostics"]
             .as_array()
@@ -122,20 +143,14 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
     let run = &fixture.manifest.run;
     let expected = &fixture.expected;
     if let Some(expected_error) = &expected.error {
-        let error = strato_core::analyze_path_with_options(
-            fixture.root.as_std_path(),
-            &strato_core::AnalysisOptions {
-                config: strato_core::ConfigSource::Defaults,
-                ..strato_core::AnalysisOptions::defaults()
-            },
-        )
-        .expect_err("expected fatal analysis error");
+        let error =
+            analyze_fixture_once(fixture, false, true).expect_err("expected fatal analysis error");
+        cleanup_fixture_cache(fixture);
         assert!(
             error.to_string().contains(expected_error),
-            "{}: {} ({}) expected error containing '{}', got '{}'",
+            "{}: {} expected error containing '{}', got '{}'",
             fixture.id,
             fixture.name,
-            run.name,
             expected_error,
             error
         );
@@ -144,16 +159,12 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
     let actual_run = analyze_fixture_run(fixture, run).expect("analyze fixture run");
     assert_eq!(
         actual_run.exit_code, expected.exit_code,
-        "{}: {} ({}) exit code",
-        fixture.id, fixture.name, run.name
+        "{}: {} exit code",
+        fixture.id, fixture.name
     );
     let actual = actual_run.json;
     if expected.mode == "full_json" {
-        assert_eq!(
-            actual, expected.output,
-            "{}: {} ({})",
-            fixture.id, fixture.name, run.name
-        );
+        assert_eq!(actual, expected.output, "{}: {}", fixture.id, fixture.name);
     } else {
         for section in &expected.assert_sections {
             let actual_section = normalize_partial_section(section, &actual[section]);
@@ -161,10 +172,7 @@ fn assert_fixture_matches_expected(fixture: &AcceptanceFixture) {
             assert_json_subset(
                 &expected_section,
                 &actual_section,
-                &format!(
-                    "{}: {} ({}) section {section}",
-                    fixture.id, fixture.name, run.name
-                ),
+                &format!("{}: {} section {section}", fixture.id, fixture.name),
             );
         }
     }

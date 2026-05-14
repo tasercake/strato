@@ -1,10 +1,6 @@
-id = "A8"
 name = "Property Blocking"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "classifies blocking descriptor access as STRATO003"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

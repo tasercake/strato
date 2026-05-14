@@ -1,10 +1,6 @@
-id = "A31"
 name = "Unresolved Call Precision"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "unknown-is-not-blocking"
-purpose = "keeps unresolved calls unknown instead of speculatively reporting them as blocking"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

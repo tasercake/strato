@@ -1,10 +1,6 @@
-id = "A16"
 name = "Intermediate Property"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "keeps STRATO003 classification when property access appears below an intermediate helper"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

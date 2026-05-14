@@ -1,10 +1,6 @@
-id = "A2"
 name = "Transitive Blocking"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "first-party-deepest"
-purpose = "selects the deepest first-party blocking call under the default intervention strategy"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

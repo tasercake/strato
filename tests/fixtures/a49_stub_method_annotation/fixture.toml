@@ -1,11 +1,7 @@
-id = "A49"
 name = "Stub Method Annotation"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 extra_files = ["stubs/client.pyi"]
 
 [run]
-name = "stub-method-annotation"
-purpose = "blocking annotations on stub methods apply to calls resolved through parameter types"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

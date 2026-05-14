@@ -1,10 +1,6 @@
-id = "A38"
 name = "Blocking Config Add Configured"
 source_files = ["legacy.py", "main.py"]
 config_files = ["pyproject.toml"]
 
 [run]
-name = "blocking-add"
-purpose = "marks a configured first-party function as blocking"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

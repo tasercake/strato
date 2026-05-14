@@ -1,10 +1,6 @@
-id = "A39"
 name = "Blocking Config Remove Configured"
 source_files = ["main.py"]
 config_files = ["pyproject.toml"]
 
 [run]
-name = "blocking-remove"
-purpose = "removes a built-in blocking entry without treating the unresolved external as blocking"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

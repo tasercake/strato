@@ -1,10 +1,6 @@
-id = "A10"
 name = "Cross File"
 source_files = ["main.py", "utils.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "traces blocking propagation across first-party files"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

@@ -1,10 +1,6 @@
-id = "A3"
 name = "Executor Safe"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "suppresses blocking propagation through run_in_executor"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

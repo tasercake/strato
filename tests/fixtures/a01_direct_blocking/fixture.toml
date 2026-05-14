@@ -1,10 +1,6 @@
-id = "A1"
 name = "Direct Blocking"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "detects a direct known blocking call in an async function"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

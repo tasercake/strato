@@ -1,10 +1,6 @@
-id = "A14"
 name = "Unblocker Basic"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "treats @unblocker calls as safe, reports unwrapped direct blocking calls, and protects lambda executor graph accounting"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

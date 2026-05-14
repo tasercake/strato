@@ -1,10 +1,6 @@
-id = "A20"
 name = "Deterministic Ordering"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "first"
-purpose = "orders diagnostics deterministically by source location on the first run"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

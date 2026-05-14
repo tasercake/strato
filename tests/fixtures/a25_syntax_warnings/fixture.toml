@@ -1,10 +1,6 @@
-id = "A25"
 name = "Syntax Warnings"
 source_files = ["invalid.py", "valid.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "recoverable-syntax-warning"
-purpose = "continues analyzing valid files while reporting syntax errors as warnings"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

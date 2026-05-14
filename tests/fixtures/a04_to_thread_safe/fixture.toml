@@ -1,10 +1,6 @@
-id = "A4"
 name = "To Thread Safe"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "suppresses blocking propagation through asyncio.to_thread"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

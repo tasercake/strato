@@ -1,10 +1,6 @@
-id = "A24"
 name = "Related Locations"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "checks deterministic related-location shape and ordering"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"

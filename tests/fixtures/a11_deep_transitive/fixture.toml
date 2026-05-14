@@ -1,10 +1,6 @@
-id = "A11"
 name = "Deep Transitive"
 source_files = ["main.py"]
-config_files = []
+config_files = ["pyproject.toml"]
 
 [run]
-name = "default"
-purpose = "preserves a deep transitive blocking chain"
 args = ["check", ".", "--output", "json"]
-cache = "disabled"
