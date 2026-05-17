@@ -1,16 +1,57 @@
 # Strato
 
-Strato is a linter designed to detect common pitfalls in Python's asynchronous (asyncio) code.
+Strato detects **transitive blocking calls in async Python**: the `async handler → sync helper → blocking I/O` bugs that direct async linters usually miss.
 
-> 🔎 Strato is currently in early alpha - wouldn't recommend relying on it for production use. Open to comments and feedback 🙂
+> 🔎 Strato is early alpha. Do not treat it as production-ready yet — please try it on real async Python code and send weird cases, false positives, and missed blockers.
 
-When a blocking operation (like reading a file synchronously, making a blocking HTTP request, or calling time.sleep()) runs inside an async function, it freezes the entire event loop – preventing all other async tasks from making progress. These bugs are insidious because the code still works, they just silently destroy the concurrency benefits async was supposed to provide.
+## The bug Strato is built for
 
-The project's key ambition goes beyond detecting direct blocking calls (which existing tools already catch). It aims to detect indirect blocking – when an async function calls a regular function that internally makes blocking calls. This requires cross-function and potentially cross-file analysis to trace call chains and determine whether a seemingly innocent function call will ultimately block the event loop.
+Async Python is efficient only while the event loop can keep making progress. A single blocking operation — `requests.get`, `time.sleep`, sync file I/O, sync DB drivers, subprocess calls — can freeze the loop and make every other coroutine wait.
 
-## Usage
+Existing tools such as Ruff's `ASYNC` rules and `flake8-async` are good at the direct case:
 
-Run Strato against a Python project or directory with:
+```python
+async def handler():
+    time.sleep(1)  # direct blocking call
+```
+
+The production bug is often one or more functions away:
+
+```python
+import requests
+
+async def handler():
+    load_profile()  # looks harmless, but blocks the event loop
+
+def load_profile():
+    return requests.get("https://api.example.com/profile").json()
+```
+
+`load_profile()` is a perfectly valid synchronous function. The bug is calling it from an async context without offloading it. Strato follows the call graph and reports the async call site that introduced the blocking path:
+
+```text
+STRATO002: transitive blocking call reachable from async context
+  chain: handler -> load_profile -> requests.get
+  help: use an async client, or offload with asyncio.to_thread / run_in_executor
+```
+
+That is Strato's core job: find hidden event-loop blockers before teams compensate with extra workers, replicas, and CPU.
+
+## What Strato does
+
+Strato statically analyzes your first-party Python code and:
+
+- marks known blocking functions from a curated database,
+- builds a project call graph using semantic resolution from Astral's [`ty`](https://docs.astral.sh/ty/),
+- propagates the blocking effect through ordinary sync helpers,
+- suppresses propagation through known executor wrappers such as `asyncio.to_thread`, `loop.run_in_executor`, and `anyio.to_thread.run_sync`,
+- reports async call sites that reach blocking I/O without an offload boundary.
+
+It is complementary to Ruff and `flake8-async`: they catch direct async footguns; Strato targets the transitive call paths that require whole-project analysis.
+
+## Quickstart
+
+Run Strato against a Python project or directory:
 
 ```bash
 cargo run -p strato_cli -- check path/to/project
@@ -22,29 +63,42 @@ For example, from this repository:
 cargo run -p strato_cli -- check tests/fixtures/a02_transitive_blocking --no-cache
 ```
 
-Use `--output json` or `--output sarif` for machine-readable output.
+Machine-readable output is available for CI and code-scanning workflows:
 
----
+```bash
+cargo run -p strato_cli -- check path/to/project --output json
+cargo run -p strato_cli -- check path/to/project --output sarif
+```
 
-## Motivating Example
+## Safe offloading
+
+Strato should not flag a blocking helper when it is explicitly moved off the event loop:
 
 ```python
 import asyncio
 import requests
-async def foo():
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, requests.get, "https://example.com")  # OK - properly offloaded
-async def bar():
-    return requests.get("https://example.com")  # Error! Direct blocking call (existing tools catch this)
-def baz():
-    return requests.get("https://example.com")  # OK in isolation - it's a sync function
-def qux():
-    return  # OK - no blocking
-async def main():
-    await foo()  # OK
-    await bar()  # OK (the error is in bar's body, not here)
-    baz()        # Error! Calling a blocking sync function from async context
-    qux()        # OK - qux doesn't block
+
+def load_profile():
+    return requests.get("https://api.example.com/profile").json()
+
+async def handler():
+    return await asyncio.to_thread(load_profile)  # OK: offloaded
 ```
 
-The key insight: baz() itself is a perfectly valid synchronous function. But calling it from an async context is a bug – it will block the event loop. Existing linters don't catch this because they only look at direct calls to known blocking functions, not at the transitive blocking behavior of user-defined functions.
+Custom wrappers and project-specific knowledge can be modeled with configuration and decorators such as `@blocking`, `@non_blocking`, and `@unblocker`; see the docs for details.
+
+## Documentation
+
+The mdBook docs live under [`docs/book`](docs/book):
+
+- motivation and problem statement
+- analysis pipeline
+- call graph and type resolution
+- blocking propagation
+- blocking database and annotations
+- escape hatches / executor wrappers
+- output formats including JSON and SARIF
+
+## Status
+
+Strato is currently focused on one narrow, high-value diagnostic: **transitive blocking-call detection for async Python**. The next credibility milestones are real-world scans, false-positive reduction, packaging, and workflow integration.
